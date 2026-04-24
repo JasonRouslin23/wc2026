@@ -1,3 +1,5 @@
+import json
+from psycopg.types.json import Jsonb as Json
 """
 WC2026 Data Loader
 ==================
@@ -26,8 +28,8 @@ import logging
 from datetime import datetime, timezone
 
 import requests
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -72,7 +74,7 @@ def sr_get(path: str, params: dict = None) -> dict:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
 def log_sync(cur, job: str, status: str, records: int = 0, message: str = ""):
@@ -206,7 +208,7 @@ def load_teams(conn):
                     "manager_id":          manager_obj.get("id"),
                     "manager_name":        manager_obj.get("name"),
                     "manager_nationality": manager_obj.get("nationality"),
-                    "raw_json":            psycopg2.extras.Json(c),
+                    "raw_json":            Json(c),
                 },
             )
             upserted += 1
@@ -293,7 +295,7 @@ def load_squads(conn):
                         "shirt_number": p.get("jersey_number"),
                         "height_cm":    p.get("height"),
                         "weight_kg":    p.get("weight"),
-                        "raw_json":     psycopg2.extras.Json(p),
+                        "raw_json":     Json(p),
                     },
                 )
                 total_players += 1
@@ -426,7 +428,7 @@ def load_form(conn):
                         "venue_name":       venue_obj.get("name"),
                         "venue_city":       venue_obj.get("city_name"),
                         "venue_country":    venue_obj.get("country_name"),
-                        "raw_json":         psycopg2.extras.Json(summary),
+                        "raw_json":         Json(summary),
                     },
                 )
 
@@ -455,7 +457,7 @@ def load_form(conn):
                             event.get("time"),
                             event.get("added_time"),
                             event.get("method"),
-                            psycopg2.extras.Json(event),
+                            Json(event),
                         ),
                     )
 
@@ -528,7 +530,7 @@ def load_standings(conn):
                             "goals_for":    entry.get("goals_scored", 0),
                             "goals_against": entry.get("goals_conceded", 0),
                             "points":       entry.get("points", 0),
-                            "raw_json":     psycopg2.extras.Json(entry),
+                            "raw_json":     Json(entry),
                         },
                     )
                     total += 1
@@ -539,15 +541,214 @@ def load_standings(conn):
     log.info(f"Standings loaded: {total} entries")
 
 
+# ── 5. Player Form ────────────────────────────────────────────────────────────
+
+def ensure_player_form_table(conn):
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS player_form (
+                id                SERIAL PRIMARY KEY,
+                player_id         VARCHAR(64) NOT NULL,
+                match_id          VARCHAR(64) NOT NULL,
+                competition_name  TEXT,
+                competition_id    TEXT,
+                season_name       TEXT,
+                kickoff_utc       TIMESTAMPTZ,
+                home_team_id      TEXT,
+                away_team_id      TEXT,
+                home_team_name    TEXT,
+                away_team_name    TEXT,
+                home_score        INT,
+                away_score        INT,
+                starter           BOOLEAN,
+                goals_scored      INT DEFAULT 0,
+                assists           INT DEFAULT 0,
+                shots_on_target   INT DEFAULT 0,
+                shots_off_target  INT DEFAULT 0,
+                shots_blocked     INT DEFAULT 0,
+                yellow_cards      INT DEFAULT 0,
+                red_cards         INT DEFAULT 0,
+                yellow_red_cards  INT DEFAULT 0,
+                own_goals         INT DEFAULT 0,
+                offsides          INT DEFAULT 0,
+                corner_kicks      INT DEFAULT 0,
+                substituted_in    INT DEFAULT 0,
+                substituted_out   INT DEFAULT 0,
+                raw_json          JSONB,
+                last_synced       TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(player_id, match_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_player_form_player ON player_form(player_id);
+            CREATE INDEX IF NOT EXISTS idx_player_form_match ON player_form(match_id);
+            CREATE INDEX IF NOT EXISTS idx_player_form_kickoff ON player_form(kickoff_utc DESC);
+        """)
+        conn.commit()
+    log.info("player_form table ready")
+
+
+def load_player_form(conn):
+    """
+    For every player in the DB, fetch their last 10 matches across all
+    competitions (club + national team) and store per-match stats.
+    """
+    ensure_player_form_table(conn)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, name, team_id FROM players ORDER BY team_id, name")
+        players = cur.fetchall()
+
+    log.info(f"Loading player form for {len(players)} players …")
+    total = 0
+    errors = 0
+
+    for i, player in enumerate(players):
+        pid = player["id"]
+        pname = player["name"]
+
+        try:
+            data = sr_get(f"players/{pid}/summaries.json")
+        except Exception as e:
+            log.warning(f"  [{i+1}/{len(players)}] {pname}: fetch failed — {e}")
+            errors += 1
+            continue
+
+        summaries = data.get("summaries", [])[:10]
+        if not summaries:
+            continue
+
+        inserted = 0
+        with conn.cursor() as cur:
+            for summary in summaries:
+                se          = summary.get("sport_event", {})
+                ctx         = se.get("sport_event_context", {})
+                status      = summary.get("sport_event_status", {})
+                stats_root  = summary.get("statistics", {})
+
+                se_id = se.get("id")
+                if not se_id:
+                    continue
+
+                # Competition / season
+                comp_obj   = ctx.get("competition", {})
+                season_obj = ctx.get("season", {})
+
+                # Kickoff
+                kickoff_utc = None
+                ks = se.get("start_time")
+                if ks:
+                    try:
+                        kickoff_utc = datetime.fromisoformat(ks.replace("Z", "+00:00"))
+                    except ValueError:
+                        pass
+
+                # Teams
+                home_team_id = away_team_id = None
+                home_team_name = away_team_name = None
+                for comp in se.get("competitors", []):
+                    if comp.get("qualifier") == "home":
+                        home_team_id   = comp.get("id")
+                        home_team_name = comp.get("name")
+                    else:
+                        away_team_id   = comp.get("id")
+                        away_team_name = comp.get("name")
+
+                # Find this player's stats in statistics.totals.competitors[].players
+                pstats = {}
+                starter = None
+                for competitor in stats_root.get("totals", {}).get("competitors", []):
+                    for p in competitor.get("players", []):
+                        if p.get("id") == pid:
+                            pstats  = p.get("statistics", {})
+                            starter = p.get("starter")
+                            break
+
+                cur.execute("""
+                    INSERT INTO player_form (
+                        player_id, match_id, competition_name, competition_id,
+                        season_name, kickoff_utc,
+                        home_team_id, away_team_id, home_team_name, away_team_name,
+                        home_score, away_score, starter,
+                        goals_scored, assists, shots_on_target, shots_off_target,
+                        shots_blocked, yellow_cards, red_cards, yellow_red_cards,
+                        own_goals, offsides, corner_kicks,
+                        substituted_in, substituted_out,
+                        raw_json, last_synced
+                    ) VALUES (
+                        %(player_id)s, %(match_id)s, %(competition_name)s, %(competition_id)s,
+                        %(season_name)s, %(kickoff_utc)s,
+                        %(home_team_id)s, %(away_team_id)s, %(home_team_name)s, %(away_team_name)s,
+                        %(home_score)s, %(away_score)s, %(starter)s,
+                        %(goals_scored)s, %(assists)s, %(shots_on_target)s, %(shots_off_target)s,
+                        %(shots_blocked)s, %(yellow_cards)s, %(red_cards)s, %(yellow_red_cards)s,
+                        %(own_goals)s, %(offsides)s, %(corner_kicks)s,
+                        %(substituted_in)s, %(substituted_out)s,
+                        %(raw_json)s, NOW()
+                    )
+                    ON CONFLICT (player_id, match_id) DO UPDATE SET
+                        goals_scored     = EXCLUDED.goals_scored,
+                        assists          = EXCLUDED.assists,
+                        shots_on_target  = EXCLUDED.shots_on_target,
+                        shots_off_target = EXCLUDED.shots_off_target,
+                        shots_blocked    = EXCLUDED.shots_blocked,
+                        yellow_cards     = EXCLUDED.yellow_cards,
+                        red_cards        = EXCLUDED.red_cards,
+                        home_score       = EXCLUDED.home_score,
+                        away_score       = EXCLUDED.away_score,
+                        last_synced      = NOW()
+                """, {
+                    "player_id":        pid,
+                    "match_id":         se_id,
+                    "competition_name": comp_obj.get("name"),
+                    "competition_id":   comp_obj.get("id"),
+                    "season_name":      season_obj.get("name"),
+                    "kickoff_utc":      kickoff_utc,
+                    "home_team_id":     home_team_id,
+                    "away_team_id":     away_team_id,
+                    "home_team_name":   home_team_name,
+                    "away_team_name":   away_team_name,
+                    "home_score":       status.get("home_score"),
+                    "away_score":       status.get("away_score"),
+                    "starter":          starter,
+                    "goals_scored":     pstats.get("goals_scored", 0),
+                    "assists":          pstats.get("assists", 0),
+                    "shots_on_target":  pstats.get("shots_on_target", 0),
+                    "shots_off_target": pstats.get("shots_off_target", 0),
+                    "shots_blocked":    pstats.get("shots_blocked", 0),
+                    "yellow_cards":     pstats.get("yellow_cards", 0),
+                    "red_cards":        pstats.get("red_cards", 0),
+                    "yellow_red_cards": pstats.get("yellow_red_cards", 0),
+                    "own_goals":        pstats.get("own_goals", 0),
+                    "offsides":         pstats.get("offsides", 0),
+                    "corner_kicks":     pstats.get("corner_kicks", 0),
+                    "substituted_in":   pstats.get("substituted_in", 0),
+                    "substituted_out":  pstats.get("substituted_out", 0),
+                    "raw_json":         Json(summary),
+                })
+                inserted += 1
+
+            log_sync(cur, "player_form_row", "ok", inserted)
+            conn.commit()
+
+        total += inserted
+        if (i + 1) % 50 == 0:
+            log.info(f"  Progress: {i+1}/{len(players)} players, {total} rows so far …")
+
+    log.info(f"Player form loaded: {total} rows, {errors} errors")
+    with conn.cursor() as cur:
+        log_sync(cur, "player_form", "ok", total, f"{errors} errors")
+    conn.commit()
+
+
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="WC2026 Data Loader")
-    parser.add_argument("--all",       action="store_true", help="Full sync")
-    parser.add_argument("--teams",     action="store_true")
-    parser.add_argument("--squads",    action="store_true")
-    parser.add_argument("--form",      action="store_true")
-    parser.add_argument("--standings", action="store_true")
+    parser.add_argument("--all",          action="store_true", help="Full sync")
+    parser.add_argument("--teams",        action="store_true")
+    parser.add_argument("--squads",       action="store_true")
+    parser.add_argument("--form",         action="store_true")
+    parser.add_argument("--standings",    action="store_true")
+    parser.add_argument("--player-form",  action="store_true")
     args = parser.parse_args()
 
     if not any(vars(args).values()):
@@ -557,7 +758,6 @@ def main():
     conn = get_conn()
 
     try:
-        # Always load group map first (needed for team → group assignment)
         load_groups(conn)
 
         if args.all or args.teams:
@@ -571,6 +771,9 @@ def main():
 
         if args.all or args.standings:
             load_standings(conn)
+
+        if getattr(args, "player_form", False):
+            load_player_form(conn)
 
         log.info("✅ Sync complete")
 

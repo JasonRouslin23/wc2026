@@ -29,8 +29,8 @@ import logging
 import subprocess
 from datetime import datetime, timezone
 
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from flask import Flask, jsonify, request, abort
 from flask_cors import CORS
 
@@ -50,8 +50,7 @@ ADMIN_SECRET  = os.environ.get("ADMIN_SECRET", "changeme")
 # ── DB ────────────────────────────────────────────────────────────────────────
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL,
-                            cursor_factory=psycopg2.extras.RealDictCursor)
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
 def rows(cur) -> list[dict]:
@@ -398,6 +397,30 @@ def get_team_form(team_id: str):
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
+
+@app.route("/api/players/<player_id>/form")
+def get_player_form(player_id: str):
+    limit = min(int(request.args.get("limit", 10)), 20)
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    pf.match_id, pf.kickoff_utc, pf.competition_name,
+                    pf.home_team_name, pf.away_team_name,
+                    pf.home_score, pf.away_score, pf.starter,
+                    pf.goals_scored, pf.assists, pf.shots_on_target,
+                    pf.shots_off_target, pf.shots_blocked,
+                    pf.yellow_cards, pf.red_cards, pf.substituted_in, pf.substituted_out
+                FROM player_form pf
+                WHERE pf.player_id = %s
+                ORDER BY pf.kickoff_utc DESC
+                LIMIT %s
+            """, (player_id, limit))
+            return jsonify_rows(rows(cur))
+    finally:
+        conn.close()
+
 
 @app.route("/api/admin/sync", methods=["POST"])
 def admin_sync():
