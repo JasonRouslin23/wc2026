@@ -564,6 +564,9 @@ nav {
       <button class="phase-tab locked" onclick="showPhase('qf')" id="tab-qf">Quarterfinals</button>
       <button class="phase-tab locked" onclick="showPhase('sf')" id="tab-sf">Semifinals</button>
       <button class="phase-tab locked" onclick="showPhase('final')" id="tab-final">Final</button>
+      <button onclick="resetBracket()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);font-size:0.75rem;padding:0.35rem 0.8rem;border-radius:6px;cursor:pointer;transition:all 0.2s"
+        onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">↺ Reset Bracket</button>
     </div>
 
     <div id="phase-groups"><div class="loading"><div class="spinner"></div> Loading groups…</div></div>
@@ -1456,7 +1459,22 @@ function clearSlip() {
   renderSlip();
 }
 
-function toggleSlip() {
+function resetBracket() {
+  if (!confirm('Reset all bracket picks and bet slip?')) return;
+  groupPicks = {};
+  thirdPicks = [];
+  knockoutPicks = {};
+  betSlip = [];
+  window.slotOverrides = {};
+  // Lock all phases except groups
+  ['third','r32','r16','qf','sf','final'].forEach(p => {
+    const tab = document.getElementById(`tab-${p}`);
+    if (tab) tab.classList.add('locked');
+  });
+  renderSlip();
+  showPhase('groups');
+  renderGroups();
+}
   document.getElementById('slip-col').classList.toggle('expanded');
 }
 
