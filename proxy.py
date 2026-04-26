@@ -167,21 +167,25 @@ def get_team_detail(team_id: str):
             if not team:
                 abort(404, "Team not found")
 
-            # Squad by position
+            # Squad by position with API-Football stats
             cur.execute("""
-                SELECT id, name, date_of_birth, nationality, country_code,
-                       position, shirt_number, height_cm, weight_kg, player_rating
-                FROM players
-                WHERE team_id = %s
+                SELECT p.id, p.name, p.date_of_birth, p.nationality, p.country_code,
+                       p.position, p.shirt_number, p.height_cm, p.weight_kg, p.player_rating,
+                       af.goals, af.assists, af.appearances, af.minutes, af.rating as af_rating,
+                       af.shots_total, af.shots_on, af.passes_key, af.pass_accuracy,
+                       af.tackles_total, af.interceptions, af.league_name as club_league
+                FROM players p
+                LEFT JOIN player_apifootball_stats af ON af.player_id = p.id
+                WHERE p.team_id = %s
                 ORDER BY
-                    CASE position
+                    CASE p.position
                         WHEN 'Goalkeeper' THEN 1
                         WHEN 'Defender'   THEN 2
                         WHEN 'Midfielder' THEN 3
                         WHEN 'Forward'    THEN 4
                         ELSE 5
                     END,
-                    shirt_number NULLS LAST
+                    p.shirt_number NULLS LAST
             """, (team_id,))
             squad = rows(cur)
 
@@ -266,6 +270,64 @@ def get_power_rankings():
                 ORDER BY t.power_rank
             """)
             return jsonify_rows(rows(cur))
+    finally:
+        conn.close()
+
+
+# ── Player Detail ─────────────────────────────────────────────────────────────
+
+@app.route("/api/players/<player_id>")
+def get_player_detail(player_id: str):
+    """Full player detail: profile + API-Football stats + recent form."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            # Base player info
+            cur.execute("""
+                SELECT p.*, t.name as team_name, t.group_name, t.country_code as team_country_code
+                FROM players p
+                JOIN teams t ON t.id = p.team_id
+                WHERE p.id = %s
+            """, (player_id,))
+            player = row(cur)
+            if not player:
+                abort(404, "Player not found")
+            player.pop("raw_json", None)
+
+            # API-Football season stats
+            cur.execute("""
+                SELECT af_name, league_name, season, pos, age,
+                       appearances, lineups, minutes,
+                       goals, assists, shots_total, shots_on,
+                       passes_total, passes_key, pass_accuracy,
+                       dribbles_attempts, dribbles_success,
+                       tackles_total, interceptions, duels_total, duels_won,
+                       yellow_cards, red_cards, fouls_committed, fouls_drawn,
+                       rating
+                FROM player_apifootball_stats
+                WHERE player_id = %s
+            """, (player_id,))
+            season_stats = row(cur)
+
+            # Recent form (last 10 matches)
+            cur.execute("""
+                SELECT match_id, kickoff_utc, competition_name,
+                       home_team_name, away_team_name,
+                       home_score, away_score, starter,
+                       goals_scored, assists, shots_on_target,
+                       shots_off_target, shots_blocked,
+                       yellow_cards, red_cards,
+                       substituted_in, substituted_out
+                FROM player_form
+                WHERE player_id = %s
+                ORDER BY kickoff_utc DESC
+                LIMIT 10
+            """, (player_id,))
+            form = [dict(r) for r in cur.fetchall()]
+
+        player["season_stats"] = season_stats
+        player["form"] = form
+        return jsonify_rows(player)
     finally:
         conn.close()
 
