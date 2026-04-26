@@ -201,52 +201,55 @@ def main():
         matches = player_form.get(pid, [])
         af = af_stats.get(pid, {})
 
-        if not matches and not af:
-            player_scores[pid] = 2.0
-            continue
+        # Primary signal: API-Football match rating (Whoscored-style, 0-10)
+        # This already accounts for position and is the best single signal we have
+        af_rating = float(af.get("rating") or 0)
+        af_apps = int(af.get("appearances") or 0)
+        af_mins = int(af.get("minutes") or 0)
 
-        total_score = 0.0
-        total_weight = 0.0
+        if af_rating > 0 and af_apps >= 3:
+            # Scale 6.0-8.5 range to 0-100
+            # 6.0 = poor (0), 7.0 = average (40), 7.5 = good (60), 8.0 = elite (80), 8.5+ = world class (95+)
+            primary_score = max(0, min(100, (af_rating - 6.0) / 2.5 * 100))
 
-        for i, match in enumerate(matches[:10]):
-            prestige = get_prestige(match.get("competition_name", ""))
-            match_score = score_player_match(match, prestige, player.get("position", ""))
-            weight = decay ** i
-            total_score += match_score * weight
-            total_weight += weight
+            # Boost for volume (more minutes = more reliable)
+            minutes_boost = min(10, af_mins / 300)
+            primary_score += minutes_boost
 
-        raw = total_score / total_weight if total_weight > 0 else 0.0
-
-        # Blend in API-Football season stats as a bonus
-        # This particularly helps defenders/GKs who have low goal contributions
-        af_bonus = 0.0
-        if af:
-            mins = af.get("minutes") or 0
-            apps = af.get("appearances") or 1
-            if pos == 'goalkeeper':
-                # GKs: rating is the main signal
-                af_rating = float(af.get("rating") or 0)
-                af_bonus = (af_rating - 6.5) * 2.0  # 7.0 rating = +1.0 bonus
-            elif pos == 'defender':
+            # Position-specific bonus stats
+            if pos == 'defender':
                 tackles = (af.get("tackles_total") or 0)
                 intercepts = (af.get("interceptions") or 0)
-                af_bonus = (tackles + intercepts) / max(apps, 1) * 0.3
-                af_rating = float(af.get("rating") or 0)
-                if af_rating > 0:
-                    af_bonus += (af_rating - 6.5) * 1.5
+                primary_score += min(5, (tackles + intercepts) / max(af_apps, 1) * 0.5)
             elif pos == 'midfielder':
                 key_passes = (af.get("passes_key") or 0)
-                dribbles = (af.get("dribbles_success") or 0)
-                af_bonus = (key_passes / max(apps, 1)) * 0.4 + (dribbles / max(apps, 1)) * 0.2
-                af_rating = float(af.get("rating") or 0)
-                if af_rating > 0:
-                    af_bonus += (af_rating - 6.5) * 1.0
-            else:  # forward
-                af_rating = float(af.get("rating") or 0)
-                if af_rating > 0:
-                    af_bonus += (af_rating - 6.5) * 0.8
+                primary_score += min(5, key_passes / max(af_apps, 1) * 0.5)
+            elif pos == 'forward':
+                goals = (af.get("goals") or 0)
+                assists = (af.get("assists") or 0)
+                primary_score += min(8, (goals + assists) / max(af_apps, 1) * 2)
 
-        player_scores[pid] = max(1.0, raw + 5.0 + af_bonus)
+            player_scores[pid] = max(1.0, min(95.0, primary_score))
+
+        else:
+            # No AF data — use form-based scoring as fallback
+            if not matches:
+                player_scores[pid] = 2.0
+                continue
+
+            total_score = 0.0
+            total_weight = 0.0
+
+            for i, match in enumerate(matches[:10]):
+                prestige = get_prestige(match.get("competition_name", ""))
+                match_score = score_player_match(match, prestige, player.get("position", ""))
+                weight = decay ** i
+                total_score += match_score * weight
+                total_weight += weight
+
+            raw = total_score / total_weight if total_weight > 0 else 0.0
+            # Cap fallback scores at 45 so they can't beat AF-rated players
+            player_scores[pid] = max(1.0, min(45.0, raw + 5.0))
 
     # Normalize scores to 0-100 scale
     all_scores = list(player_scores.values())
