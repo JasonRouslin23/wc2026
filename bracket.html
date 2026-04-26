@@ -60,6 +60,7 @@ nav {
   background: var(--card); border-top: 2px solid var(--teal);
   transition: height 0.3s ease;
   height: 48px;
+  position: fixed;
 }
 
 .slip-col.expanded { height: 340px; }
@@ -588,12 +589,16 @@ nav {
       </div>
       <div style="display:flex;align-items:center;gap:1rem">
         <span style="font-size:0.72rem;color:var(--muted)" id="slip-payout-header"></span>
-        <button onclick="event.stopPropagation();event.preventDefault();openOptimizer();return false;" id="build-parlay-btn"
-          style="background:var(--teal);color:#08111a;border:none;padding:0.3rem 0.8rem;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em">
-          ⚡ Build Parlay
-        </button>
         <span class="slip-toggle">▲</span>
       </div>
+    </div>
+    <!-- Build Parlay button outside the toggle click area -->
+    <div style="position:absolute;right:3.5rem;top:0.6rem;z-index:101">
+      <button onclick="event.stopPropagation();event.preventDefault();openOptimizer();return false;" id="build-parlay-btn"
+        style="background:var(--teal);color:#08111a;border:none;padding:0.3rem 0.8rem;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em">
+        ⚡ Build Parlay
+      </button>
+    </div>
     </div>
     <div class="slip-body">
       <div class="slip-legs" id="slip-legs">
@@ -672,7 +677,10 @@ const betTypeState = { advance: true, wingroup: false };
 let lastMixChanged = null;
 
 function openOptimizer() {
-  document.getElementById('optimizer-overlay').style.display = 'flex';
+  // Clear any pending hideBetPopup listeners first
+  hideBetPopup();
+  const overlay = document.getElementById('optimizer-overlay');
+  overlay.style.display = 'flex';
   // Hide "Win Group" toggle in knockout stages
   const wingroupToggle = document.getElementById('toggle-wingroup');
   const isKnockout = ['r32','r16','qf','sf','final'].includes(currentPhase);
@@ -1439,7 +1447,8 @@ function goToPhase(phase) {
 }
 
 function hideBetPopup() {
-  document.getElementById('bet-popup').style.display = 'none';
+  const popup = document.getElementById('bet-popup');
+  if (popup) popup.style.display = 'none';
 }
 
 // ── BET SLIP ──────────────────────────────────────────────────────────────────
