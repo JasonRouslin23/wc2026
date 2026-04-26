@@ -1049,13 +1049,16 @@ function renderGroupCard(g) {
                   pick === 'picked-3rd' ? '<span class="group-team-badge badge-3rd">3rd</span>' : '';
 
     return `
-      <div class="group-team-row ${pick}" onclick="clickGroupTeam(event, '${g.name}', '${t.id}')">
+      <div class="group-team-row ${pick}">
         <span class="group-team-flag">${flag(t.country_code)}</span>
-        <div class="group-team-info">
+        <div class="group-team-info" onclick="clickGroupTeam(event, '${g.name}', '${t.id}')" style="flex:1;cursor:pointer">
           <div class="group-team-name">${t.name}</div>
           <div class="group-team-rating">Rating: ${pr.power_rating?.toFixed(1) || '—'}</div>
         </div>
         ${badge}
+        <button onclick="event.stopPropagation();openBetPopup(event,'${g.name}','${t.id}')"
+          style="background:none;border:1px solid var(--border);color:var(--teal);border-radius:4px;width:22px;height:22px;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:0.4rem;transition:all 0.15s"
+          onmouseover="this.style.background='var(--teal-dim)'" onmouseout="this.style.background='none'">+</button>
       </div>
     `;
   }).join('');
@@ -1072,7 +1075,37 @@ function renderGroupCard(g) {
   `;
 }
 
-function clickGroupTeam(event, groupName, teamId) {
+function openBetPopup(event, groupName, teamId) {
+  event.stopPropagation();
+  const group = groupsData.find(g => g.name === groupName);
+  const team = group.teams.find(t => t.id === teamId);
+  const pr = rankingsData[teamId] || {};
+
+  const advPct = pr.advance_pct || 50;
+  const winGroupPct = advPct * 0.45;
+  const winGroupOdds = formatOdds(probToAmerican(winGroupPct));
+  const qualifyOdds  = formatOdds(probToAmerican(advPct));
+
+  document.getElementById('popup-title').textContent = `${flag(team.country_code)} ${team.name}`;
+  document.getElementById('popup-options').innerHTML = `
+    <div class="bet-option" onclick="addToSlip('${teamId}-win-${groupName}',{id:'${teamId}',name:'${team.name}',country_code:'${team.country_code}'},'${flag(team.country_code)}','Win Group ${groupName}','${winGroupOdds}',${probToAmerican(winGroupPct)});hideBetPopup()">
+      <div><div class="bet-option-label">Win Group ${groupName}</div></div>
+      <div class="bet-option-odds">${winGroupOdds}</div>
+    </div>
+    <div class="bet-option" onclick="addToSlip('${teamId}-adv-${groupName}',{id:'${teamId}',name:'${team.name}',country_code:'${team.country_code}'},'${flag(team.country_code)}','Advance from Group ${groupName}','${qualifyOdds}',${probToAmerican(advPct)});hideBetPopup()">
+      <div><div class="bet-option-label">Advance from Group ${groupName}</div></div>
+      <div class="bet-option-odds">${qualifyOdds}</div>
+    </div>
+  `;
+
+  const x = Math.min(event.clientX + 10, window.innerWidth - 230);
+  const y = Math.min(event.clientY + 10, window.innerHeight - 150);
+  const popup = document.getElementById('bet-popup');
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+  popup.style.display = 'block';
+  setTimeout(() => document.addEventListener('click', hideBetPopup, {once:true}), 50);
+}
   event.stopPropagation();
   const group = groupsData.find(g => g.name === groupName);
   const team = group.teams.find(t => t.id === teamId);
@@ -1320,12 +1353,21 @@ function renderKnockout(phase) {
       if (!team) return `<div class="bracket-team tbd"><span class="bracket-team-flag">?</span><span class="bracket-team-name">TBD</span></div>`;
       const pr = rankingsData[team.id] || {};
       const isWinner = winner?.id === team.id;
+      const pctMap = {r32: pr.advance_pct, r16: pr.qf_pct, qf: pr.semi_pct, sf: pr.final_pct, final: pr.win_pct};
+      const pct = pctMap[phase];
+      const odds = formatOdds(probToAmerican(pct));
+      const phaseLabels = {r32:'Advance to R16', r16:'Reach QF', qf:'Reach Semis', sf:'Reach Final', final:'Win World Cup'};
       return `
-        <div class="bracket-team ${isWinner ? 'winner' : ''}"
-             onclick="pickKnockoutWinner('${phase}', '${match.id}', '${team.id}')">
-          <span class="bracket-team-flag">${flag(team.country_code)}</span>
-          <span class="bracket-team-name">${team.name}</span>
-          <span class="bracket-team-rating">${pr.power_rating?.toFixed(1)||'—'}</span>
+        <div class="bracket-team ${isWinner ? 'winner' : ''}" style="display:flex;align-items:center">
+          <div style="flex:1;display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;cursor:pointer"
+               onclick="pickKnockoutWinner('${phase}', '${match.id}', '${team.id}')">
+            <span class="bracket-team-flag">${flag(team.country_code)}</span>
+            <span class="bracket-team-name">${team.name}</span>
+            <span class="bracket-team-rating">${pr.power_rating?.toFixed(1)||'—'}</span>
+          </div>
+          <button onclick="event.stopPropagation();addToSlip('${team.id}-${phase}',{id:'${team.id}',name:'${team.name}',country_code:'${team.country_code}'},'${flag(team.country_code)}','${phaseLabels[phase]}','${odds}',${probToAmerican(pct)||0})"
+            style="background:none;border:none;border-left:1px solid var(--border);color:var(--teal);width:28px;height:100%;font-size:0.9rem;cursor:pointer;padding:0 0.4rem;flex-shrink:0;transition:background 0.15s"
+            onmouseover="this.style.background='var(--teal-dim)'" onmouseout="this.style.background='none'">+</button>
         </div>
       `;
     };
@@ -1374,27 +1416,8 @@ function pickKnockoutWinner(phase, matchId, teamId) {
   if (!team) return;
 
   knockoutPicks[matchId] = team;
-
-  // Add to bet slip
-  const pr = rankingsData[teamId] || {};
-  const phaseLabels = {
-    r32: 'Advance to R16', r16: 'Advance to QF',
-    qf: 'Advance to Semis', sf: 'Advance to Final', final: 'Win World Cup'
-  };
-  const pctMap = {
-    r32: pr.advance_pct, r16: pr.qf_pct,
-    qf: pr.semi_pct, sf: pr.final_pct, final: pr.win_pct
-  };
-  const pct = pctMap[phase];
-  const odds = formatOdds(probToAmerican(pct));
-
-  addToSlip(`${teamId}-${phase}`, team, flag(team.country_code),
-    phaseLabels[phase], odds, probToAmerican(pct));
-
-  // Re-render current phase
   renderKnockout(phase);
 
-  // Unlock next phase
   const nextPhase = {r32:'r16', r16:'qf', qf:'sf', sf:'final'}[phase];
   if (nextPhase) {
     const allPicked = (phase === 'r32' ? R32_MATCHES :
