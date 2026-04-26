@@ -585,8 +585,8 @@ nav {
       </div>
       <div style="display:flex;align-items:center;gap:1rem">
         <span style="font-size:0.72rem;color:var(--muted)" id="slip-payout-header"></span>
-        <button onclick="event.stopPropagation();openOptimizer()" id="build-parlay-btn"
-          style="background:var(--teal);color:#08111a;border:none;padding:0.3rem 0.8rem;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;display:none">
+        <button onclick="event.stopPropagation();event.preventDefault();openOptimizer();return false;" id="build-parlay-btn"
+          style="background:var(--teal);color:#08111a;border:none;padding:0.3rem 0.8rem;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em">
           ⚡ Build Parlay
         </button>
         <span class="slip-toggle">▲</span>
@@ -1086,18 +1086,10 @@ function clickGroupTeam(event, groupName, teamId) {
 
   // Store pending action
   window._pendingBetActions = {
-    pick1st: () => {
-      setGroupPick(groupName, team, 'first');
-      addToSlip(`${teamId}-win-${groupName}`, team, flag(team.country_code),
-        `Win Group ${groupName}`, winGroupOdds, probToAmerican(winGroupPct));
-    },
-    pick2nd: () => {
-      setGroupPick(groupName, team, 'second');
-      addToSlip(`${teamId}-adv-${groupName}`, team, flag(team.country_code),
-        `Advance from Group ${groupName}`, qualifyOdds, probToAmerican(advPct));
-    },
+    pick1st: () => { setGroupPick(groupName, team, 'first'); },
+    pick2nd: () => { setGroupPick(groupName, team, 'second'); },
     pick3rd: () => { setGroupPick(groupName, team, 'third'); },
-    clear: () => { clearGroupPick(groupName, teamId); },
+    clear:   () => { clearGroupPick(groupName, teamId); },
   };
 
   const picks = groupPicks[groupName] || {};
@@ -1258,15 +1250,9 @@ function toggleThird(teamId, teamName, countryCode, group) {
   const idx = thirdPicks.indexOf(teamId);
   if (idx >= 0) {
     thirdPicks.splice(idx, 1);
-    removeFromSlip(`${teamId}-3rd`);
   } else {
     if (thirdPicks.length >= 8) return;
     thirdPicks.push(teamId);
-    // Add to slip
-    const odds = formatOdds(probToAmerican(pr.advance_pct ? pr.advance_pct * 0.5 : null));
-    addToSlip(`${teamId}-3rd`, {id: teamId, name: teamName, country_code: countryCode},
-      flag(countryCode), `Advance as Best 3rd (Group ${group})`, odds,
-      probToAmerican(pr.advance_pct ? pr.advance_pct * 0.5 : null));
   }
 
   document.getElementById('third-count').textContent = `${thirdPicks.length}/8 selected`;
