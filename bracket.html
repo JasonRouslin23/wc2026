@@ -652,10 +652,10 @@ nav {
     <!-- Legs -->
     <div class="opt-section">
       <div class="opt-label">Number of Legs <span id="opt-legs-val">8</span></div>
-      <input type="range" class="legs-slider" id="opt-legs" min="3" max="16" value="8"
+      <input type="range" class="legs-slider" id="opt-legs" min="1" max="16" value="8"
              oninput="document.getElementById('opt-legs-val').textContent=this.value;updateBetTypeLegControls()">
       <div class="legs-display">
-        <span>3</span><span>8</span><span>12</span><span>16</span>
+        <span>1</span><span>8</span><span>12</span><span>16</span>
       </div>
     </div>
 
@@ -663,7 +663,7 @@ nav {
     <div class="opt-section">
       <div class="opt-label">Bet Types</div>
       <div id="opt-bet-types"></div>
-      <div class="bet-type-mix-status ok" id="bet-type-mix-status">✓ Bet-type mix matches total legs</div>
+      <div class="bet-type-mix-status ok" id="bet-type-mix-status">✓ One market selected</div>
     </div>
 
     <!-- Odds Mix -->
@@ -819,13 +819,6 @@ function renderOptimizerBetTypeControls() {
     <div class="bet-type-row">
       ${optimizerMarkets.map(m => `<div class="bet-type-toggle ${betTypeState[m.key] ? 'on' : ''}" id="toggle-${m.key}" onclick="toggleBetType('${m.key}')">${m.label}</div>`).join('')}
     </div>
-    ${optimizerMarkets.map((m, idx) => `
-      <div class="bet-type-mix-grid">
-        <div class="bet-type-mix-label">${m.label} legs</div>
-        <input type="number" min="0" step="1" value="${idx === 0 ? 8 : 0}" id="opt-${m.key}-legs" class="bet-type-mix-input" oninput="updateBetTypeLegControls()">
-        <div class="bet-type-mix-max" id="opt-${m.key}-max">max 0</div>
-      </div>
-    `).join('')}
   `;
 }
 
@@ -839,30 +832,27 @@ function updateGenerateButtonState() {
 }
 
 function updateBetTypeLegControls() {
-  const legs = parseInt(document.getElementById('opt-legs').value);
-  const requestedByType = {};
-
-  optimizerMarkets.forEach(m => {
-    const input = document.getElementById(`opt-${m.key}-legs`);
-    if (!input) return;
-    const max = betTypeState[m.key] ? m.pool.length : 0;
-    input.disabled = !betTypeState[m.key];
-    document.getElementById(`opt-${m.key}-max`).textContent = `max ${max}`;
-    let requested = Math.max(0, parseInt(input.value) || 0);
-    if (!betTypeState[m.key]) requested = 0;
-    requested = Math.min(requested, max);
-    input.value = requested;
-    requestedByType[m.key] = requested;
-  });
-
-  const sum = Object.values(requestedByType).reduce((a,b) => a+b, 0);
+  const selectedMarket = optimizerMarkets.find(m => betTypeState[m.key]);
   const status = document.getElementById('bet-type-mix-status');
-  if (sum === legs) {
-    status.textContent = '✓ Bet-type mix matches total legs';
-    status.className = 'bet-type-mix-status ok';
-  } else {
-    status.textContent = `Bet-type legs must equal ${legs} legs`;
+  const legsSlider = document.getElementById('opt-legs');
+  const legsVal = document.getElementById('opt-legs-val');
+
+  if (!selectedMarket) {
+    status.textContent = 'Select one market to continue';
     status.className = 'bet-type-mix-status warn';
+    legsSlider.min = 1;
+    legsSlider.max = 1;
+    legsSlider.value = 1;
+    legsVal.textContent = '1';
+  } else {
+    const maxLegs = Math.max(1, selectedMarket.pool.length);
+    legsSlider.min = 1;
+    legsSlider.max = maxLegs;
+    const clamped = Math.min(Math.max(parseInt(legsSlider.value) || 1, 1), maxLegs);
+    legsSlider.value = clamped;
+    legsVal.textContent = clamped;
+    status.textContent = `✓ Selected market: ${selectedMarket.label} (max ${maxLegs} legs)`;
+    status.className = 'bet-type-mix-status ok';
   }
 
   updateGenerateButtonState();
@@ -886,13 +876,10 @@ function closeOptimizer(e) {
 }
 
 function toggleBetType(type) {
-  betTypeState[type] = !betTypeState[type];
-  // Ensure at least one is on
-  if (!Object.values(betTypeState).some(Boolean)) {
-    betTypeState[type] = true;
-    return;
-  }
-  document.getElementById(`toggle-${type}`).classList.toggle('on', betTypeState[type]);
+  Object.keys(betTypeState).forEach(key => {
+    betTypeState[key] = key === type;
+    document.getElementById(`toggle-${key}`)?.classList.toggle('on', betTypeState[key]);
+  });
   updateBetTypeLegControls();
 }
 
@@ -930,13 +917,9 @@ function generateParlay() {
     return;
   }
 
-  const requestedByType = {};
-  optimizerMarkets.forEach(m => {
-    requestedByType[m.key] = parseInt(document.getElementById(`opt-${m.key}-legs`)?.value) || 0;
-  });
-
-  if (Object.values(requestedByType).reduce((a,b)=>a+b, 0) !== legs) {
-    alert('Bet-type legs must add up to total legs.');
+  const selectedMarket = optimizerMarkets.find(m => betTypeState[m.key]);
+  if (!selectedMarket) {
+    alert('Select one bet type / market first.');
     return;
   }
 
@@ -958,11 +941,6 @@ function generateParlay() {
   optimizerMarkets.forEach(m => {
     m.pool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
   });
-
-  const getMarketSelectionOrder = () => {
-    if (currentPhase !== 'final') return optimizerMarkets.map(m => m.key);
-    return ['win_wc', 'reach_final', 'reach_semis', 'reach_qf', 'wingroup', 'advance'];
-  };
 
   const americanImpliedProb = (odds) => {
     if (!odds) return 0;
@@ -1017,32 +995,9 @@ function generateParlay() {
     return chosen.slice(0, count);
   };
 
-  // If both markets are enabled, pick Win Group first so elite group favorites are
-  // allocated there before filling Advance from the remaining unique teams.
-  const selectedByType = {};
-  let selected = [];
-  const marketByKey = Object.fromEntries(optimizerMarkets.map(m => [m.key, m]));
-  const selectionOrder = getMarketSelectionOrder().filter(key => marketByKey[key]);
-  selectionOrder.forEach(key => {
-    const market = marketByKey[key];
-    if (!betTypeState[key]) return;
-    selectedByType[key] = pickByTier(market.pool, requestedByType[key] || 0, key);
-    selected = [...selected, ...selectedByType[key]];
-  });
-
-  const allowedFallbackPool = optimizerMarkets
-    .filter(m => betTypeState[m.key])
-    .map(m => m.pool)
-    .flat()
-    .filter(p => !selected.some(x => x.team.id === p.team.id && x.desc === p.desc))
-    .sort((a,b) => (b.pct||0) - (a.pct||0));
-  const fallbackLegs = pickFromArr(allowedFallbackPool, Math.max(0, legs - selected.length));
-  selected = [...selected, ...fallbackLegs].slice(0, legs);
+  let selected = pickByTier(selectedMarket.pool, Math.min(legs, selectedMarket.pool.length), selectedMarket.key);
 
   const couldNotFillAllLegs = selected.length < legs;
-  const couldNotMatchMix = optimizerMarkets.some(m =>
-    betTypeState[m.key] && (selectedByType[m.key]?.length || 0) < (requestedByType[m.key] || 0)
-  );
 
   // Render result
   const tierLabel = (tier) => {
@@ -1064,7 +1019,6 @@ function generateParlay() {
     <div class="opt-result">
       <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.6rem">${selected.length} Legs Generated</div>
       ${couldNotFillAllLegs ? `<div style="font-size:0.72rem;color:#fbbf24;margin-bottom:0.5rem">Not enough eligible unique teams to reach ${legs} legs. Built ${selected.length} valid unique legs.</div>` : ''}
-      ${!couldNotFillAllLegs && couldNotMatchMix ? `<div style="font-size:0.72rem;color:#fbbf24;margin-bottom:0.5rem">Exact bet-type mix could not be met without duplicate teams. Filled remaining legs with best eligible non-duplicate options.</div>` : ''}
       ${selected.map(p => `
         <div class="opt-result-leg">
           ${flag(p.team.country_code)} ${p.team.name}
