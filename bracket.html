@@ -1503,12 +1503,6 @@ function copySlip() {
   setTimeout(() => btn.textContent = '📋 Copy Parlay', 2000);
 }
 
-// Close popup on outside click
-document.addEventListener('click', (e) => {
-  const popup = document.getElementById('bet-popup');
-  if (!popup.contains(e.target)) popup.style.display = 'none';
-});
-
 init();
 </script>
 </body>
