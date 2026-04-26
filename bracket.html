@@ -592,13 +592,13 @@ nav {
         <span class="slip-toggle">▲</span>
       </div>
     </div>
-    <!-- Build Parlay button outside the toggle click area -->
-    <div style="position:absolute;right:3.5rem;top:0.6rem;z-index:101">
-      <button onclick="event.stopPropagation();event.preventDefault();openOptimizer();return false;" id="build-parlay-btn"
-        style="background:var(--teal);color:#08111a;border:none;padding:0.3rem 0.8rem;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em">
-        ⚡ Build Parlay
-      </button>
-    </div>
+  <!-- Build Parlay button - completely outside slip -->
+  <div style="position:fixed;bottom:10px;right:10px;z-index:150">
+    <button id="build-parlay-btn" onclick="openOptimizer()"
+      style="background:var(--teal);color:#08111a;border:none;padding:0.5rem 1.25rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 4px 16px rgba(83,214,220,0.4)">
+      ⚡ Build Parlay
+    </button>
+  </div>
     </div>
     <div class="slip-body">
       <div class="slip-legs" id="slip-legs">
@@ -1023,9 +1023,12 @@ function renderGroups() {
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">Group Stage</div>
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick 1st, 2nd, or 3rd place. Add bets to your slip.</div>
       </div>
-      <div style="display:flex;gap:1rem;align-items:center">
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+        <button onclick="autoFill('favorites')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.75rem;padding:0.4rem 0.8rem;border-radius:6px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">⭐ Favorites</button>
+        <button onclick="autoFill('simulate')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.75rem;padding:0.4rem 0.8rem;border-radius:6px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='var(--border)'">🤖 Simulate</button>
+        <button onclick="autoFill('random')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.75rem;padding:0.4rem 0.8rem;border-radius:6px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='var(--purple,#8b5cf6)'" onmouseout="this.style.borderColor='var(--border)'">🎲 Random</button>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;text-align:center">
-          <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Groups Picked</div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Groups</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--teal)" id="groups-picked-count">0/12</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;text-align:center">
@@ -1396,9 +1399,15 @@ function renderKnockout(phase) {
   }).join('');
 
   el.innerHTML = `
-    <div style="margin-bottom:1rem">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">${cfg.title}</div>
-      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick them as the winner.</div>
+    <div style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">${cfg.title}</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick them as the winner. Use + to add to bet slip.</div>
+      </div>
+      <div style="display:flex;gap:0.5rem">
+        <button onclick="autoFillKnockout('favorites')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.75rem;padding:0.4rem 0.8rem;border-radius:6px;cursor:pointer">⭐ Auto Favorites</button>
+        <button onclick="autoFillKnockout('simulate')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.75rem;padding:0.4rem 0.8rem;border-radius:6px;cursor:pointer">🤖 Simulate</button>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem">
       ${matchesHtml}
@@ -1486,7 +1495,72 @@ function resetBracket() {
   renderGroups();
 }
 
-function toggleSlip() {
+function autoFill(mode) {
+  groupsData.forEach(g => {
+    const teams = [...g.teams].map(t => ({
+      ...t, pr: rankingsData[t.id]?.power_rating || 50
+    }));
+
+    let first, second, third;
+
+    if (mode === 'favorites') {
+      const sorted = teams.sort((a,b) => b.pr - a.pr);
+      first = sorted[0]; second = sorted[1]; third = sorted[2];
+    } else if (mode === 'simulate') {
+      // Weighted random — probability proportional to power rating
+      const pick = (pool) => {
+        const total = pool.reduce((s,t) => s + t.pr, 0);
+        let r = Math.random() * total;
+        for (const t of pool) { r -= t.pr; if (r <= 0) return t; }
+        return pool[0];
+      };
+      first  = pick(teams);
+      second = pick(teams.filter(t => t.id !== first.id));
+      third  = pick(teams.filter(t => t.id !== first.id && t.id !== second.id));
+    } else { // random
+      const shuffled = [...teams].sort(() => Math.random() - 0.5);
+      first = shuffled[0]; second = shuffled[1]; third = shuffled[2];
+    }
+
+    groupPicks[g.name] = { first, second, third };
+  });
+
+  renderGroups();
+  checkGroupsComplete();
+}
+
+function autoFillKnockout(mode) {
+  // Auto-pick winners for current knockout phase
+  const phaseMatches = {
+    r32: R32_MATCHES, r16: R16_MATCHES, qf: QF_MATCHES,
+    sf: SF_MATCHES, final: [FINAL_MATCH]
+  };
+  const matches = phaseMatches[currentPhase];
+  if (!matches) return;
+
+  matches.forEach(match => {
+    const allTeams = groupsData.flatMap(g => g.teams);
+    const homeTeam = currentPhase === 'r32' ? resolveTeam(match.home) : knockoutPicks[match.home];
+    const awayTeam = currentPhase === 'r32' ? resolveTeam(match.away) : knockoutPicks[match.away];
+    if (!homeTeam || !awayTeam) return;
+
+    const homePr = rankingsData[homeTeam.id]?.power_rating || 50;
+    const awayPr = rankingsData[awayTeam.id]?.power_rating || 50;
+
+    let winner;
+    if (mode === 'favorites') {
+      winner = homePr >= awayPr ? homeTeam : awayTeam;
+    } else {
+      const r = Math.random() * (homePr + awayPr);
+      winner = r < homePr ? homeTeam : awayTeam;
+    }
+    knockoutPicks[match.id] = winner;
+  });
+
+  renderKnockout(currentPhase);
+  const nextPhase = {r32:'r16', r16:'qf', qf:'sf', sf:'final'}[currentPhase];
+  if (nextPhase) unlockPhase(nextPhase);
+}
   document.getElementById('slip-col').classList.toggle('expanded');
 }
 
