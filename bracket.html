@@ -51,7 +51,7 @@ nav {
 .main-col {
   flex: 1; min-width: 0; overflow-x: auto;
   padding: 1.5rem;
-  padding-bottom: 60px; /* space for collapsed slip */
+  padding-bottom: 56px;
 }
 
 /* ── BET SLIP - BOTTOM COLLAPSIBLE ── */
@@ -102,10 +102,9 @@ nav {
 
 .slip-body {
   display: none; height: calc(340px - 48px);
-  display: flex; flex-direction: row;
+  flex-direction: row; overflow: hidden;
 }
 
-.slip-col:not(.expanded) .slip-body { display: none; }
 .slip-col.expanded .slip-body { display: flex; }
 
 .slip-legs {
@@ -1040,7 +1039,7 @@ function renderGroups() {
     <div class="groups-grid">
       ${groupsData.map(g => renderGroupCard(g)).join('')}
     </div>
-    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+    <div style="display:flex;justify-content:flex-end;margin-top:0.75rem">
       <button onclick="goToThird()" style="background:var(--teal);color:#08111a;border:none;padding:0.75rem 2rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase">
         Next: Best 3rd Place →
       </button>
