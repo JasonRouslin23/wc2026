@@ -719,6 +719,8 @@ function getOptimizerPools() {
   const winGroupPool = [];
   const qfPool = [];
   const sfPool = [];
+  const finalPool = [];
+  const championPool = [];
 
   groupsData.forEach(g => {
     const picks = groupPicks[g.name] || {};
@@ -749,11 +751,26 @@ function getOptimizerPools() {
     });
   });
 
+  [FINAL_MATCH.home, FINAL_MATCH.away].forEach(slot => {
+    const team = knockoutPicks[slot];
+    if (!team) return;
+    const pr = rankingsData[team.id] || {};
+    finalPool.push({team, desc: 'Reach Final', type: 'reach_final', pct: pr.final_pct ?? pr.semi_pct ?? pr.win_pct});
+  });
+
+  if (knockoutPicks['final']) {
+    const team = knockoutPicks['final'];
+    const pr = rankingsData[team.id] || {};
+    championPool.push({team, desc: 'Win World Cup', type: 'win_wc', pct: pr.win_pct});
+  }
+
   return {
     advancePool: dedupePool(advancePool),
     winGroupPool: dedupePool(winGroupPool),
     qfPool: dedupePool(qfPool),
-    sfPool: dedupePool(sfPool)
+    sfPool: dedupePool(sfPool),
+    finalPool: dedupePool(finalPool),
+    championPool: dedupePool(championPool)
   };
 }
 
@@ -769,6 +786,14 @@ function getStageOptimizerMarkets() {
     ],
     sf: [
       { key: 'reach_semis', label: 'To Reach Semifinals', poolKey: 'sfPool' },
+    ],
+    final: [
+      { key: 'advance', label: 'To Advance', poolKey: 'advancePool' },
+      { key: 'wingroup', label: 'To Win Group', poolKey: 'winGroupPool' },
+      { key: 'reach_qf', label: 'To Reach Quarterfinals', poolKey: 'qfPool' },
+      { key: 'reach_semis', label: 'To Reach Semifinals', poolKey: 'sfPool' },
+      { key: 'reach_final', label: 'To Reach Final', poolKey: 'finalPool' },
+      { key: 'win_wc', label: 'To Win World Cup', poolKey: 'championPool' },
     ],
   };
   const phaseMarkets = byPhase[currentPhase] || [];
@@ -1636,6 +1661,7 @@ function pickKnockoutWinner(phase, matchId, teamId) {
 
   knockoutPicks[matchId] = team;
   renderKnockout(phase);
+  updateStageAwareBettingUI();
 
   const nextPhase = {r32:'r16', r16:'qf', qf:'sf', sf:'final'}[phase];
   if (nextPhase) {
@@ -1656,7 +1682,8 @@ function goToPhase(phase) {
 function updateStageAwareBettingUI() {
   const hasSlipLegs = betSlip.length > 0;
   const hasOptimizerMarkets = getStageOptimizerMarkets().length > 0;
-  const showOptimizerButton = hasOptimizerMarkets && currentPhase !== 'r16';
+  const finalReady = currentPhase !== 'final' || !!knockoutPicks['final'];
+  const showOptimizerButton = hasOptimizerMarkets && currentPhase !== 'r16' && finalReady;
   const showSlip = currentPhase !== 'r16' || hasSlipLegs;
 
   const optimizerBtn = document.getElementById('build-parlay-btn');
