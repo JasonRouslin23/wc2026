@@ -375,14 +375,14 @@ nav {
 .bracket-team-name { font-size: 0.75rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bracket-team-rating { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); }
 
-/* ── OPTIMIZER PANEL ── */
-.optimizer-panel {
+/* ── OPTIMIZER DRAWER (legacy) ── */
+.optimizer-drawer {
   position: fixed; bottom: 48px; left: 0; right: 0; z-index: 99;
   background: #0a1820; border-top: 1px solid var(--border);
   transform: translateY(100%); transition: transform 0.3s ease;
   max-height: 70vh; overflow-y: auto;
 }
-.optimizer-panel.open { transform: translateY(0); }
+.optimizer-drawer.open { transform: translateY(0); }
 
 .optimizer-inner { padding: 1.5rem; max-width: 900px; margin: 0 auto; }
 
@@ -516,7 +516,7 @@ nav {
   background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
   display: flex; align-items: flex-end; justify-content: center;
 }
-.optimizer-panel {
+.optimizer-modal-panel {
   background: #0a1820; border: 1px solid var(--border);
   border-top: 2px solid var(--teal); border-radius: 12px 12px 0 0;
   width: 100%; max-width: 640px; padding: 1.5rem;
@@ -614,7 +614,7 @@ nav {
     </div>
   <!-- Build Parlay button - completely outside slip -->
   <div style="position:fixed;bottom:10px;right:10px;z-index:150">
-    <button id="build-parlay-btn" onclick="openOptimizer()"
+    <button id="build-parlay-btn" onclick="openOptimizer(event)"
       style="background:var(--teal);color:#08111a;border:none;padding:0.5rem 1.25rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 4px 16px rgba(83,214,220,0.4)">
       ⚡ Build Parlay
     </button>
@@ -636,7 +636,7 @@ nav {
 
 <!-- Optimizer -->
 <div class="optimizer-overlay" id="optimizer-overlay" style="display:none" onclick="closeOptimizer(event)">
-  <div class="optimizer-panel" onclick="event.stopPropagation()">
+  <div class="optimizer-modal-panel" onclick="event.stopPropagation()">
     <div class="opt-header">
       <div class="opt-title">⚡ Parlay Optimizer</div>
       <button class="opt-close" onclick="closeOptimizer()">✕</button>
@@ -696,7 +696,8 @@ nav {
 const betTypeState = { advance: true, wingroup: false };
 let lastMixChanged = null;
 
-function openOptimizer() {
+function openOptimizer(event) {
+  if (event) event.stopPropagation();
   // Clear any pending hideBetPopup listeners first
   hideBetPopup();
   const overlay = document.getElementById('optimizer-overlay');
