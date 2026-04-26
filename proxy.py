@@ -68,6 +68,9 @@ def serialize(obj):
         return obj.isoformat()
     if isinstance(obj, Decimal):
         return float(obj)
+    import datetime as dt
+    if isinstance(obj, dt.date):
+        return obj.isoformat()
     raise TypeError(f"Not serialisable: {type(obj)}")
 
 
