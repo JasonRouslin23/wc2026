@@ -711,7 +711,7 @@ async function init() {
     return;
   }
   try {
-    const res = await fetch(`${API}/api/teams/${encodeURIComponent(teamId)}`);
+    const res = await fetch(`${API}/api/teams/${teamId}`);
     teamData = await res.json();
     renderTeamView();
   } catch(e) {

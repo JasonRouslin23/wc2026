@@ -155,7 +155,7 @@ def get_teams():
         conn.close()
 
 
-@app.route("/api/teams/<team_id>")
+@app.route("/api/teams/<path:team_id>")
 def get_team_detail(team_id: str):
     """Full team detail: profile, squad, recent form, standings."""
     conn = get_conn()
@@ -276,7 +276,7 @@ def get_power_rankings():
 
 # ── Player Detail ─────────────────────────────────────────────────────────────
 
-@app.route("/api/players/<player_id>")
+@app.route("/api/players/<path:player_id>")
 def get_player_detail(player_id: str):
     """Full player detail: profile + API-Football stats + recent form."""
     conn = get_conn()
