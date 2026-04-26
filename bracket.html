@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WC2026 — Bracket Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal:    #53d6dc;
+  --teal-dim: rgba(83,214,220,0.12);
+  --bg:      #08111a;
+  --surface: #0f2030;
+  --card:    #112233;
+  --border:  #1a3048;
+  --border2: #254560;
+  --text:    #e2f4f5;
+  --muted:   #5a8a92;
+  --gold:    #f4c842;
+  --green:   #4ade80;
+  --red:     #f87171;
+  --silver:  #94a3b8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+/* ── NAV ── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(8,17,26,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2rem; height: 56px;
+}
+.nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.1em; }
+.nav-logo span { color: var(--teal); }
+.nav-tabs { display: flex; gap: 0.25rem; }
+.nav-tab {
+  background: none; border: none; color: var(--muted);
+  font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+}
+.nav-tab:hover { color: var(--text); background: var(--surface); }
+.nav-tab.active { color: var(--teal); background: var(--teal-dim); }
+
+/* ── LAYOUT ── */
+.page { display: flex; flex-direction: column; min-height: calc(100vh - 56px); }
+
+.main-col {
+  flex: 1; min-width: 0; overflow-x: auto;
+  padding: 1.5rem;
+  padding-bottom: 60px; /* space for collapsed slip */
+}
+
+/* ── BET SLIP - BOTTOM COLLAPSIBLE ── */
+.slip-col {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: var(--card); border-top: 2px solid var(--teal);
+  transition: height 0.3s ease;
+  height: 48px;
+}
+
+.slip-col.expanded { height: 340px; }
+
+.slip-header {
+  padding: 0 1.5rem;
+  height: 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.slip-header:hover { background: rgba(83,214,220,0.04); }
+
+.slip-header-left {
+  display: flex; align-items: center; gap: 0.75rem;
+}
+
+.slip-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem; letter-spacing: 0.08em; color: var(--text);
+}
+
+.slip-count {
+  background: var(--teal); color: #08111a;
+  font-size: 0.68rem; font-weight: 700;
+  padding: 0.12rem 0.5rem; border-radius: 100px;
+}
+
+.slip-combined {
+  font-family: 'DM Mono', monospace; font-size: 0.82rem;
+  color: var(--teal); font-weight: 600;
+}
+
+.slip-toggle {
+  font-size: 0.75rem; color: var(--muted); transition: transform 0.3s;
+}
+.slip-col.expanded .slip-toggle { transform: rotate(180deg); }
+
+.slip-body {
+  display: none; height: calc(340px - 48px);
+  display: flex; flex-direction: row;
+}
+
+.slip-col:not(.expanded) .slip-body { display: none; }
+.slip-col.expanded .slip-body { display: flex; }
+
+.slip-legs {
+  flex: 1; overflow-x: auto; overflow-y: hidden;
+  display: flex; gap: 0.5rem; align-items: flex-start;
+  padding: 0.75rem 1rem;
+}
+
+.slip-leg {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.6rem 0.75rem;
+  min-width: 160px; max-width: 180px; flex-shrink: 0;
+  position: relative;
+}
+
+.slip-leg-team {
+  font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.slip-leg-desc { font-size: 0.68rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.3; }
+
+.slip-leg-odds {
+  font-family: 'DM Mono', monospace; font-size: 0.8rem;
+  color: var(--teal); font-weight: 600; margin-top: 0.3rem;
+}
+
+.slip-leg-remove {
+  position: absolute; top: 0.3rem; right: 0.3rem;
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 0.7rem; padding: 0.1rem 0.25rem;
+  border-radius: 3px; transition: all 0.15s;
+}
+.slip-leg-remove:hover { color: var(--red); background: rgba(248,113,113,0.1); }
+
+.slip-actions {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 0.5rem; padding: 0.75rem; border-left: 1px solid var(--border);
+  min-width: 160px;
+}
+
+.slip-total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.72rem; color: var(--muted);
+}
+.slip-total-row.big { color: var(--text); font-weight: 600; }
+.slip-total-row.big span:last-child { color: var(--teal); font-family: 'DM Mono', monospace; }
+
+.slip-btn {
+  padding: 0.6rem 1rem;
+  background: var(--teal); color: #08111a;
+  border: none; border-radius: 7px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase;
+  transition: all 0.2s;
+}
+.slip-btn:hover { background: #6ee7ed; }
+.slip-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+.slip-clear {
+  padding: 0.4rem;
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; font-size: 0.72rem; cursor: pointer; transition: all 0.2s;
+}
+.slip-clear:hover { border-color: var(--red); color: var(--red); }
+
+/* ── PHASE TABS ── */
+.phase-tabs {
+  display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+}
+
+.phase-tab {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem; font-weight: 500; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 0.4rem 1rem; border-radius: 6px;
+  cursor: pointer; transition: all 0.2s;
+}
+.phase-tab:hover { color: var(--text); }
+.phase-tab.active { color: var(--teal); border-color: var(--teal); background: var(--teal-dim); }
+.phase-tab.locked { opacity: 0.4; cursor: not-allowed; }
+
+/* ── GROUP STAGE ── */
+.groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.group-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+
+.group-card-header {
+  background: var(--surface); padding: 0.5rem 0.9rem;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.group-card-letter {
+  font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
+  letter-spacing: 0.08em; color: var(--teal);
+}
+
+.group-card-status { font-size: 0.65rem; color: var(--muted); }
+
+.group-team-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.15s; position: relative;
+}
+.group-team-row:last-child { border-bottom: none; }
+.group-team-row:hover { background: rgba(83,214,220,0.04); }
+
+.group-team-row.picked-1st { background: rgba(244,200,66,0.08); border-left: 3px solid var(--gold); }
+.group-team-row.picked-2nd { background: rgba(148,163,184,0.08); border-left: 3px solid var(--silver); }
+.group-team-row.picked-3rd { background: rgba(83,214,220,0.05); border-left: 3px solid rgba(83,214,220,0.3); }
+
+.group-team-flag { font-size: 1.1rem; line-height: 1; }
+
+.group-team-info { flex: 1; min-width: 0; }
+
+.group-team-name {
+  font-size: 0.82rem; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.group-team-rating {
+  font-size: 0.65rem; color: var(--muted);
+  font-family: 'DM Mono', monospace;
+}
+
+.group-team-badge {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem; border-radius: 4px;
+}
+
+.badge-1st { background: rgba(244,200,66,0.15); color: var(--gold); }
+.badge-2nd { background: rgba(148,163,184,0.12); color: var(--silver); }
+.badge-3rd { background: rgba(83,214,220,0.1); color: var(--teal); }
+
+/* Bet options popup */
+.bet-popup {
+  position: fixed; z-index: 200;
+  background: #0a1820; border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  min-width: 200px;
+}
+
+.bet-popup-title {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+}
+
+.bet-option {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.45rem 0.5rem; border-radius: 6px;
+  cursor: pointer; transition: background 0.15s;
+  font-size: 0.8rem;
+}
+.bet-option:hover { background: var(--teal-dim); }
+.bet-option-label { font-weight: 500; }
+.bet-option-odds { font-family: 'DM Mono', monospace; color: var(--teal); font-size: 0.78rem; }
+
+/* ── THIRD PLACE PICKER ── */
+.third-place-section {
+  margin-top: 1.5rem;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+
+.third-place-header {
+  padding: 0.75rem 1rem; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.third-place-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
+  letter-spacing: 0.06em; color: var(--text);
+}
+
+.third-place-count {
+  font-size: 0.72rem; color: var(--muted);
+}
+
+.third-place-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem; padding: 0.75rem;
+}
+
+.third-place-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 7px; padding: 0.5rem 0.75rem;
+  display: flex; align-items: center; gap: 0.5rem;
+  cursor: pointer; transition: all 0.2s;
+}
+.third-place-card:hover { border-color: var(--border2); }
+.third-place-card.selected { border-color: var(--teal); background: var(--teal-dim); }
+.third-place-card.locked-out { opacity: 0.3; cursor: not-allowed; }
+
+.third-place-flag { font-size: 1rem; }
+.third-place-name { font-size: 0.78rem; font-weight: 500; flex: 1; }
+.third-place-group { font-size: 0.65rem; color: var(--muted); }
+
+/* ── KNOCKOUT BRACKET ── */
+.bracket-container {
+  overflow-x: auto; padding-bottom: 1rem;
+}
+
+.bracket-rounds {
+  display: flex; gap: 0; min-width: 900px;
+}
+
+.bracket-round {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: space-around; padding: 0 0.5rem;
+}
+
+.round-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem;
+  letter-spacing: 0.1em; color: var(--muted); text-align: center;
+  text-transform: uppercase; margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+}
+
+.bracket-match {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; margin: 0.25rem 0;
+  min-width: 160px;
+}
+
+.bracket-team {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.45rem 0.6rem; cursor: pointer; transition: all 0.15s;
+  border-bottom: 1px solid var(--border); position: relative;
+}
+.bracket-team:last-child { border-bottom: none; }
+.bracket-team:hover { background: rgba(83,214,220,0.06); }
+.bracket-team.winner { background: rgba(83,214,220,0.1); }
+.bracket-team.winner .bracket-team-name { color: var(--teal); font-weight: 600; }
+.bracket-team.tbd { opacity: 0.4; cursor: default; }
+
+.bracket-team-flag { font-size: 0.9rem; line-height: 1; }
+.bracket-team-name { font-size: 0.75rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bracket-team-rating { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+
+/* ── LOADING ── */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 4rem; color: var(--muted); font-size: 0.82rem; gap: 0.75rem;
+}
+.spinner {
+  width: 15px; height: 15px; border: 2px solid var(--border2);
+  border-top-color: var(--teal); border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Scrollbar */
+.slip-legs::-webkit-scrollbar { width: 3px; }
+.slip-legs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">WC<span>26</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab" onclick="location.href='index.html'">Home</button>
+    <button class="nav-tab" onclick="location.href='index.html#rankings'">Rankings</button>
+    <button class="nav-tab" onclick="location.href='index.html#groups'">Groups</button>
+    <button class="nav-tab active">Bracket</button>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="main-col">
+    <div class="phase-tabs" id="phase-tabs">
+      <button class="phase-tab active" onclick="showPhase('groups')" id="tab-groups">Group Stage</button>
+      <button class="phase-tab locked" onclick="showPhase('third')" id="tab-third">Best 3rd Place</button>
+      <button class="phase-tab locked" onclick="showPhase('r32')" id="tab-r32">Round of 32</button>
+      <button class="phase-tab locked" onclick="showPhase('r16')" id="tab-r16">Round of 16</button>
+      <button class="phase-tab locked" onclick="showPhase('qf')" id="tab-qf">Quarterfinals</button>
+      <button class="phase-tab locked" onclick="showPhase('sf')" id="tab-sf">Semifinals</button>
+      <button class="phase-tab locked" onclick="showPhase('final')" id="tab-final">Final</button>
+    </div>
+
+    <div id="phase-groups"><div class="loading"><div class="spinner"></div> Loading groups…</div></div>
+    <div id="phase-third" style="display:none"></div>
+    <div id="phase-r32" style="display:none"></div>
+    <div id="phase-r16" style="display:none"></div>
+    <div id="phase-qf" style="display:none"></div>
+    <div id="phase-sf" style="display:none"></div>
+    <div id="phase-final" style="display:none"></div>
+  </div>
+
+  <!-- Bet Slip - Bottom -->
+  <div class="slip-col" id="slip-col">
+    <div class="slip-header" onclick="toggleSlip()">
+      <div class="slip-header-left">
+        <span class="slip-title">⚡ Bet Slip</span>
+        <span class="slip-count" id="slip-count">0</span>
+        <span class="slip-combined" id="slip-combined-header"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem">
+        <span style="font-size:0.72rem;color:var(--muted)" id="slip-payout-header"></span>
+        <span class="slip-toggle">▲</span>
+      </div>
+    </div>
+    <div class="slip-body">
+      <div class="slip-legs" id="slip-legs">
+        <div style="color:var(--muted);font-size:0.78rem;white-space:nowrap;padding:0.5rem">Pick teams to add bets</div>
+      </div>
+      <div class="slip-actions">
+        <div class="slip-total-row big"><span>Odds</span><span id="slip-odds-total">—</span></div>
+        <div class="slip-total-row"><span>$100 returns</span><span id="slip-payout-total">—</span></div>
+        <button class="slip-btn" id="slip-copy-btn" disabled onclick="copySlip()">📋 Copy Parlay</button>
+        <button class="slip-clear" onclick="clearSlip()">Clear All</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bet popup -->
+<div class="bet-popup" id="bet-popup" style="display:none">
+  <div class="bet-popup-title" id="popup-title">Add to Bet Slip</div>
+  <div id="popup-options"></div>
+</div>
+
+<script>
+const API = 'https://wc2026-production-aad7.up.railway.app';
+
+const FLAGS = {
+  ESP:'🇪🇸',FRA:'🇫🇷',ENG:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',BRA:'🇧🇷',ARG:'🇦🇷',GER:'🇩🇪',POR:'🇵🇹',
+  NED:'🇳🇱',BEL:'🇧🇪',NOR:'🇳🇴',MAR:'🇲🇦',COL:'🇨🇴',JPN:'🇯🇵',USA:'🇺🇸',
+  SUI:'🇨🇭',CHE:'🇨🇭',MEX:'🇲🇽',URU:'🇺🇾',CRO:'🇭🇷',SEN:'🇸🇳',TUR:'🇹🇷',
+  SWE:'🇸🇪',ECU:'🇪🇨',AUT:'🇦🇹',PAR:'🇵🇾',CAN:'🇨🇦',SCO:'🏴󠁧󠁢󠁳󠁣󠁴󠁿',CIV:'🇨🇮',
+  EGY:'🇪🇬',CZE:'🇨🇿',ALG:'🇩🇿',IRN:'🇮🇷',AUS:'🇦🇺',TUN:'🇹🇳',KOR:'🇰🇷',
+  BIH:'🇧🇦',COD:'🇨🇩',SAU:'🇸🇦',NZL:'🇳🇿',QAT:'🇶🇦',CPV:'🇨🇻',CUW:'🇨🇼',
+  HTI:'🇭🇹',IRQ:'🇮🇶',JOR:'🇯🇴',PAN:'🇵🇦',UZB:'🇺🇿',ZAF:'🇿🇦',GHA:'🇬🇭',DEU:'🇩🇪',
+};
+const flag = c => FLAGS[c?.toUpperCase()] || '🌍';
+
+// State
+let groupsData = [];
+let rankingsData = {};
+let groupPicks = {}; // groupLetter -> {first: team, second: team, third: team}
+let thirdPicks = []; // array of team ids selected as best 3rd
+let knockoutPicks = {}; // matchId -> winning team
+let betSlip = []; // array of {id, team, desc, odds, american}
+let currentPhase = 'groups';
+
+// R32 bracket structure (fixed by FIFA)
+const R32_MATCHES = [
+  {id:'m73', label:'Match 73', home:{type:'runner-up', group:'A'}, away:{type:'runner-up', group:'B'}},
+  {id:'m74', label:'Match 74', home:{type:'winner', group:'E'}, away:{type:'best3rd', groups:['A','B','C','D','F']}},
+  {id:'m75', label:'Match 75', home:{type:'winner', group:'F'}, away:{type:'runner-up', group:'C'}},
+  {id:'m76', label:'Match 76', home:{type:'winner', group:'C'}, away:{type:'runner-up', group:'F'}},
+  {id:'m77', label:'Match 77', home:{type:'winner', group:'I'}, away:{type:'best3rd', groups:['C','D','F','G','H']}},
+  {id:'m78', label:'Match 78', home:{type:'runner-up', group:'E'}, away:{type:'runner-up', group:'I'}},
+  {id:'m79', label:'Match 79', home:{type:'winner', group:'A'}, away:{type:'best3rd', groups:['C','E','F','H','I']}},
+  {id:'m80', label:'Match 80', home:{type:'winner', group:'L'}, away:{type:'best3rd', groups:['E','H','I','J','K']}},
+  {id:'m81', label:'Match 81', home:{type:'winner', group:'D'}, away:{type:'best3rd', groups:['B','E','F','I','J']}},
+  {id:'m82', label:'Match 82', home:{type:'winner', group:'G'}, away:{type:'best3rd', groups:['A','E','H','I','J']}},
+  {id:'m83', label:'Match 83', home:{type:'runner-up', group:'K'}, away:{type:'runner-up', group:'L'}},
+  {id:'m84', label:'Match 84', home:{type:'winner', group:'H'}, away:{type:'runner-up', group:'J'}},
+  {id:'m85', label:'Match 85', home:{type:'winner', group:'B'}, away:{type:'best3rd', groups:['E','F','G','I','J']}},
+  {id:'m86', label:'Match 86', home:{type:'winner', group:'J'}, away:{type:'runner-up', group:'H'}},
+  {id:'m87', label:'Match 87', home:{type:'winner', group:'K'}, away:{type:'best3rd', groups:['D','E','I','J','L']}},
+  {id:'m88', label:'Match 88', home:{type:'runner-up', group:'D'}, away:{type:'runner-up', group:'G'}},
+];
+
+// R16 pairings (winners of R32 matches)
+const R16_MATCHES = [
+  {id:'r16_1', home:'m79', away:'m73'},
+  {id:'r16_2', home:'m74', away:'m75'},
+  {id:'r16_3', home:'m77', away:'m78'},
+  {id:'r16_4', home:'m76', away:'m82'},
+  {id:'r16_5', home:'m81', away:'m88'},
+  {id:'r16_6', home:'m80', away:'m83'},
+  {id:'r16_7', home:'m85', away:'m84'},
+  {id:'r16_8', home:'m86', away:'m87'},
+];
+
+const QF_MATCHES = [
+  {id:'qf1', home:'r16_1', away:'r16_2'},
+  {id:'qf2', home:'r16_3', away:'r16_4'},
+  {id:'qf3', home:'r16_5', away:'r16_6'},
+  {id:'qf4', home:'r16_7', away:'r16_8'},
+];
+
+const SF_MATCHES = [
+  {id:'sf1', home:'qf1', away:'qf2'},
+  {id:'sf2', home:'qf3', away:'qf4'},
+];
+
+const FINAL_MATCH = {id:'final', home:'sf1', away:'sf2'};
+
+// Convert probability to American odds
+function probToAmerican(pct) {
+  if (!pct || pct <= 0) return null;
+  const p = pct / 100;
+  if (p >= 0.5) return Math.round(-(p / (1-p)) * 100);
+  return Math.round(((1-p) / p) * 100);
+}
+
+function formatOdds(american) {
+  if (!american) return '—';
+  return american > 0 ? `+${american}` : `${american}`;
+}
+
+function combinedOdds(legs) {
+  if (!legs.length) return null;
+  let mult = 1;
+  for (const leg of legs) {
+    if (!leg.odds) continue;
+    const a = leg.odds;
+    const p = a < 0 ? (-a)/(-a+100) : 100/(a+100);
+    mult *= (1/p);
+  }
+  const combined_p = 1/mult;
+  return probToAmerican(combined_p * 100);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const [gRes, rRes] = await Promise.all([
+    fetch(`${API}/api/groups`),
+    fetch(`${API}/api/power-rankings`)
+  ]);
+  groupsData = await gRes.json();
+  const rankings = await rRes.json();
+  rankings.forEach(r => { rankingsData[r.id] = r; });
+  renderGroups();
+}
+
+// ── PHASE NAV ─────────────────────────────────────────────────────────────────
+function showPhase(phase) {
+  const tab = document.getElementById(`tab-${phase}`);
+  if (tab.classList.contains('locked')) return;
+  currentPhase = phase;
+  document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  ['groups','third','r32','r16','qf','sf','final'].forEach(p => {
+    document.getElementById(`phase-${p}`).style.display = p === phase ? 'block' : 'none';
+  });
+}
+
+function unlockPhase(phase) {
+  const tab = document.getElementById(`tab-${phase}`);
+  if (tab) tab.classList.remove('locked');
+}
+
+// ── GROUP STAGE ───────────────────────────────────────────────────────────────
+function renderGroups() {
+  const el = document.getElementById('phase-groups');
+  el.innerHTML = `
+    <div style="margin-bottom:1rem">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">Group Stage</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick 1st, 2nd, or 3rd place. Add bets to your slip.</div>
+    </div>
+    <div class="groups-grid">
+      ${groupsData.map(g => renderGroupCard(g)).join('')}
+    </div>
+    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+      <button onclick="goToThird()" style="background:var(--teal);color:#08111a;border:none;padding:0.75rem 2rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase">
+        Next: Best 3rd Place →
+      </button>
+    </div>
+  `;
+}
+
+function renderGroupCard(g) {
+  const teams = g.teams || [];
+  const picks = groupPicks[g.name] || {};
+
+  const rows = teams.map(t => {
+    const pr = rankingsData[t.id] || {};
+    const pick = picks.first?.id === t.id ? 'picked-1st' :
+                 picks.second?.id === t.id ? 'picked-2nd' :
+                 picks.third?.id === t.id ? 'picked-3rd' : '';
+    const badge = pick === 'picked-1st' ? '<span class="group-team-badge badge-1st">1st</span>' :
+                  pick === 'picked-2nd' ? '<span class="group-team-badge badge-2nd">2nd</span>' :
+                  pick === 'picked-3rd' ? '<span class="group-team-badge badge-3rd">3rd</span>' : '';
+
+    return `
+      <div class="group-team-row ${pick}" onclick="clickGroupTeam(event, '${g.name}', '${t.id}')">
+        <span class="group-team-flag">${flag(t.country_code)}</span>
+        <div class="group-team-info">
+          <div class="group-team-name">${t.name}</div>
+          <div class="group-team-rating">Rating: ${pr.power_rating?.toFixed(1) || '—'}</div>
+        </div>
+        ${badge}
+      </div>
+    `;
+  }).join('');
+
+  const complete = picks.first && picks.second;
+  return `
+    <div class="group-card" id="group-card-${g.name}">
+      <div class="group-card-header">
+        <span class="group-card-letter">Group ${g.name}</span>
+        <span class="group-card-status">${complete ? '✓ Picked' : 'Click to pick'}</span>
+      </div>
+      ${rows}
+    </div>
+  `;
+}
+
+function clickGroupTeam(event, groupName, teamId) {
+  const group = groupsData.find(g => g.name === groupName);
+  const team = group.teams.find(t => t.id === teamId);
+  const pr = rankingsData[teamId] || {};
+
+  // Determine what pick slots are available
+  const picks = groupPicks[groupName] || {};
+  const isFirst  = picks.first?.id === teamId;
+  const isSecond = picks.second?.id === teamId;
+  const isThird  = picks.third?.id === teamId;
+
+  // Show bet popup with options
+  const advOdds  = probToAmerican(pr.advance_pct);
+  const winOdds  = probToAmerican(pr.win_pct ? pr.win_pct * (100 / (pr.advance_pct || 100)) * (pr.advance_pct || 50) / 100 : null);
+
+  // Simple: use advance_pct for qualify, and a rough win group estimate
+  const qualifyOdds = formatOdds(probToAmerican(pr.advance_pct));
+  const winGroupOdds = formatOdds(probToAmerican(pr.advance_pct ? pr.advance_pct * 0.45 : null));
+
+  showBetPopup(event, team.name, flag(team.country_code), [
+    {
+      label: `Pick as 1st`,
+      sublabel: 'Win Group',
+      odds: winGroupOdds,
+      american: probToAmerican(pr.advance_pct ? pr.advance_pct * 0.45 : null),
+      action: () => {
+        setGroupPick(groupName, team, 'first');
+        addToSlip(`${teamId}-win-${groupName}`, team, flag(team.country_code),
+          `Win Group ${groupName}`, winGroupOdds,
+          probToAmerican(pr.advance_pct ? pr.advance_pct * 0.45 : null));
+      }
+    },
+    {
+      label: `Pick as 2nd`,
+      sublabel: 'Qualify/Advance',
+      odds: qualifyOdds,
+      american: probToAmerican(pr.advance_pct),
+      action: () => {
+        setGroupPick(groupName, team, 'second');
+        addToSlip(`${teamId}-adv-${groupName}`, team, flag(team.country_code),
+          `Advance from Group ${groupName}`, qualifyOdds,
+          probToAmerican(pr.advance_pct));
+      }
+    },
+    {
+      label: `Pick as 3rd`,
+      sublabel: 'Potential best 3rd',
+      odds: null,
+      action: () => { setGroupPick(groupName, team, 'third'); }
+    },
+    {
+      label: isFirst || isSecond || isThird ? 'Clear pick' : null,
+      sublabel: '',
+      odds: null,
+      action: () => { clearGroupPick(groupName, teamId); }
+    }
+  ].filter(o => o.label));
+}
+
+function setGroupPick(groupName, team, slot) {
+  if (!groupPicks[groupName]) groupPicks[groupName] = {};
+  const picks = groupPicks[groupName];
+
+  // Remove team from other slots
+  if (picks.first?.id === team.id) delete picks.first;
+  if (picks.second?.id === team.id) delete picks.second;
+  if (picks.third?.id === team.id) delete picks.third;
+
+  picks[slot] = team;
+  hideBetPopup();
+
+  // Re-render group card
+  const group = groupsData.find(g => g.name === groupName);
+  const card = document.getElementById(`group-card-${groupName}`);
+  if (card) card.outerHTML = renderGroupCard(group);
+
+  checkGroupsComplete();
+}
+
+function clearGroupPick(groupName, teamId) {
+  if (!groupPicks[groupName]) return;
+  const picks = groupPicks[groupName];
+  if (picks.first?.id === teamId) delete picks.first;
+  if (picks.second?.id === teamId) delete picks.second;
+  if (picks.third?.id === teamId) delete picks.third;
+  hideBetPopup();
+  const group = groupsData.find(g => g.name === groupName);
+  const card = document.getElementById(`group-card-${groupName}`);
+  if (card) card.outerHTML = renderGroupCard(group);
+}
+
+function checkGroupsComplete() {
+  const complete = groupsData.every(g => {
+    const picks = groupPicks[g.name] || {};
+    return picks.first && picks.second;
+  });
+  if (complete) unlockPhase('third');
+}
+
+function goToThird() {
+  unlockPhase('third');
+  renderThirdPlace();
+  showPhase('third');
+}
+
+// ── THIRD PLACE ───────────────────────────────────────────────────────────────
+function renderThirdPlace() {
+  // Get all third-place picks + unpicked teams as potential 3rds
+  const thirdTeams = groupsData.map(g => {
+    const picks = groupPicks[g.name] || {};
+    return picks.third || null;
+  }).filter(Boolean);
+
+  // Also include any teams not picked as 1st or 2nd
+  const allThirds = groupsData.map(g => {
+    const picks = groupPicks[g.name] || {};
+    // find team not picked as 1st or 2nd
+    const team = picks.third || g.teams.find(t =>
+      t.id !== picks.first?.id && t.id !== picks.second?.id
+    );
+    return team ? {...team, group: g.name} : null;
+  }).filter(Boolean);
+
+  const el = document.getElementById('phase-third');
+  el.innerHTML = `
+    <div style="margin-bottom:1rem">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">Best 3rd Place Teams</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Select 8 teams you think will advance as best 3rd place finishers.</div>
+    </div>
+    <div class="third-place-section">
+      <div class="third-place-header">
+        <span class="third-place-title">Select 8 of 12 Third-Place Teams</span>
+        <span class="third-place-count" id="third-count">${thirdPicks.length}/8 selected</span>
+      </div>
+      <div class="third-place-grid">
+        ${allThirds.map(t => {
+          const pr = rankingsData[t.id] || {};
+          const isSelected = thirdPicks.includes(t.id);
+          const isLocked = !isSelected && thirdPicks.length >= 8;
+          return `
+            <div class="third-place-card ${isSelected?'selected':''} ${isLocked?'locked-out':''}"
+                 onclick="toggleThird('${t.id}', '${t.name}', '${t.country_code}', '${t.group}')">
+              <span class="third-place-flag">${flag(t.country_code)}</span>
+              <span class="third-place-name">${t.name}</span>
+              <span class="third-place-group">3rd ${t.group}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+      <button onclick="goToR32()" style="background:var(--teal);color:#08111a;border:none;padding:0.75rem 2rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase">
+        Build Bracket →
+      </button>
+    </div>
+  `;
+}
+
+function toggleThird(teamId, teamName, countryCode, group) {
+  const pr = rankingsData[teamId] || {};
+  const idx = thirdPicks.indexOf(teamId);
+  if (idx >= 0) {
+    thirdPicks.splice(idx, 1);
+    removeFromSlip(`${teamId}-3rd`);
+  } else {
+    if (thirdPicks.length >= 8) return;
+    thirdPicks.push(teamId);
+    // Add to slip
+    const odds = formatOdds(probToAmerican(pr.advance_pct ? pr.advance_pct * 0.5 : null));
+    addToSlip(`${teamId}-3rd`, {id: teamId, name: teamName, country_code: countryCode},
+      flag(countryCode), `Advance as Best 3rd (Group ${group})`, odds,
+      probToAmerican(pr.advance_pct ? pr.advance_pct * 0.5 : null));
+  }
+
+  document.getElementById('third-count').textContent = `${thirdPicks.length}/8 selected`;
+  renderThirdPlace();
+}
+
+function goToR32() {
+  unlockPhase('r32');
+  renderKnockout('r32');
+  showPhase('r32');
+}
+
+// ── KNOCKOUT ROUNDS ───────────────────────────────────────────────────────────
+function resolveTeam(slot) {
+  if (!slot) return null;
+  if (slot.type === 'winner') {
+    return groupPicks[slot.group]?.first || null;
+  }
+  if (slot.type === 'runner-up') {
+    return groupPicks[slot.group]?.second || null;
+  }
+  if (slot.type === 'best3rd') {
+    // Find any selected 3rd place team from one of the eligible groups
+    for (const g of slot.groups) {
+      const team = groupPicks[g]?.third;
+      if (team && thirdPicks.includes(team.id)) return team;
+    }
+    // Fallback: find any 3rd pick from eligible groups
+    for (const g of slot.groups) {
+      const picks = groupPicks[g] || {};
+      const t = picks.third || groupsData.find(gd=>gd.name===g)?.teams?.find(t=>
+        t.id !== picks.first?.id && t.id !== picks.second?.id
+      );
+      if (t && thirdPicks.includes(t.id)) return t;
+    }
+    return null;
+  }
+  // For knockout rounds — look up previous match winner
+  return knockoutPicks[slot] || null;
+}
+
+function renderKnockout(phase) {
+  const phaseConfig = {
+    r32: {matches: R32_MATCHES, title: 'Round of 32', next: 'r16', nextLabel: 'Round of 16'},
+    r16: {matches: R16_MATCHES, title: 'Round of 16', next: 'qf', nextLabel: 'Quarterfinals'},
+    qf:  {matches: QF_MATCHES,  title: 'Quarterfinals', next: 'sf', nextLabel: 'Semifinals'},
+    sf:  {matches: SF_MATCHES,  title: 'Semifinals', next: 'final', nextLabel: 'Final'},
+    final: {matches: [FINAL_MATCH], title: 'Final', next: null},
+  };
+
+  const cfg = phaseConfig[phase];
+  const el = document.getElementById(`phase-${phase}`);
+
+  const matchesHtml = cfg.matches.map(match => {
+    const homeTeam = phase === 'r32' ?
+      resolveTeam(match.home) :
+      knockoutPicks[match.home] || null;
+    const awayTeam = phase === 'r32' ?
+      resolveTeam(match.away) :
+      knockoutPicks[match.away] || null;
+
+    const winner = knockoutPicks[match.id];
+
+    const renderTeamRow = (team, isHome) => {
+      if (!team) return `<div class="bracket-team tbd"><span class="bracket-team-flag">?</span><span class="bracket-team-name">TBD</span></div>`;
+      const pr = rankingsData[team.id] || {};
+      const isWinner = winner?.id === team.id;
+      return `
+        <div class="bracket-team ${isWinner ? 'winner' : ''}"
+             onclick="pickKnockoutWinner('${phase}', '${match.id}', '${team.id}')">
+          <span class="bracket-team-flag">${flag(team.country_code)}</span>
+          <span class="bracket-team-name">${team.name}</span>
+          <span class="bracket-team-rating">${pr.power_rating?.toFixed(1)||'—'}</span>
+        </div>
+      `;
+    };
+
+    return `
+      <div style="margin-bottom:0.75rem">
+        <div style="font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem;letter-spacing:0.06em;text-transform:uppercase">${match.label||match.id}</div>
+        <div class="bracket-match">
+          ${renderTeamRow(homeTeam, true)}
+          ${renderTeamRow(awayTeam, false)}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="margin-bottom:1rem">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">${cfg.title}</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick them as the winner.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem">
+      ${matchesHtml}
+    </div>
+    ${cfg.next ? `
+      <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+        <button onclick="goToPhase('${cfg.next}')"
+          style="background:var(--teal);color:#08111a;border:none;padding:0.75rem 2rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase">
+          Next: ${cfg.nextLabel} →
+        </button>
+      </div>` : `
+      <div style="margin-top:2rem;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:2rem;text-align:center">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--teal);letter-spacing:0.05em">
+          ${knockoutPicks['final'] ? `🏆 ${knockoutPicks['final'].name} wins the World Cup!` : 'Pick the World Cup Winner'}
+        </div>
+        ${knockoutPicks['final'] ? `
+          <div style="margin-top:1rem;font-size:0.85rem;color:var(--muted)">
+            Your parlay has ${betSlip.length} legs. Check the bet slip for combined odds.
+          </div>` : ''}
+      </div>`}
+  `;
+}
+
+function pickKnockoutWinner(phase, matchId, teamId) {
+  const allTeams = groupsData.flatMap(g => g.teams);
+  const team = allTeams.find(t => t.id === teamId);
+  if (!team) return;
+
+  knockoutPicks[matchId] = team;
+
+  // Add to bet slip
+  const pr = rankingsData[teamId] || {};
+  const phaseLabels = {
+    r32: 'Advance to R16', r16: 'Advance to QF',
+    qf: 'Advance to Semis', sf: 'Advance to Final', final: 'Win World Cup'
+  };
+  const pctMap = {
+    r32: pr.advance_pct, r16: pr.qf_pct,
+    qf: pr.semi_pct, sf: pr.final_pct, final: pr.win_pct
+  };
+  const pct = pctMap[phase];
+  const odds = formatOdds(probToAmerican(pct));
+
+  addToSlip(`${teamId}-${phase}`, team, flag(team.country_code),
+    phaseLabels[phase], odds, probToAmerican(pct));
+
+  // Re-render current phase
+  renderKnockout(phase);
+
+  // Unlock next phase
+  const nextPhase = {r32:'r16', r16:'qf', qf:'sf', sf:'final'}[phase];
+  if (nextPhase) {
+    const allPicked = (phase === 'r32' ? R32_MATCHES :
+                       phase === 'r16' ? R16_MATCHES :
+                       phase === 'qf' ? QF_MATCHES : SF_MATCHES)
+      .every(m => knockoutPicks[m.id]);
+    if (allPicked) unlockPhase(nextPhase);
+  }
+}
+
+function goToPhase(phase) {
+  unlockPhase(phase);
+  renderKnockout(phase);
+  showPhase(phase);
+}
+
+// ── BET POPUP ─────────────────────────────────────────────────────────────────
+function showBetPopup(event, teamName, teamFlag, options) {
+  const popup = document.getElementById('bet-popup');
+  document.getElementById('popup-title').textContent = `${teamFlag} ${teamName}`;
+
+  const optHtml = options.map(o => `
+    <div class="bet-option" onclick="(${o.action.toString()})()">
+      <div>
+        <div class="bet-option-label">${o.label}</div>
+        ${o.sublabel ? `<div style="font-size:0.65rem;color:var(--muted)">${o.sublabel}</div>` : ''}
+      </div>
+      ${o.odds ? `<div class="bet-option-odds">${o.odds}</div>` : ''}
+    </div>
+  `).join('');
+
+  document.getElementById('popup-options').innerHTML = optHtml;
+
+  // Position near click
+  const x = Math.min(event.clientX, window.innerWidth - 220);
+  const y = Math.min(event.clientY, window.innerHeight - 200);
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+  popup.style.display = 'block';
+
+  setTimeout(() => document.addEventListener('click', hideBetPopup, {once: true}), 10);
+}
+
+function hideBetPopup() {
+  document.getElementById('bet-popup').style.display = 'none';
+}
+
+// ── BET SLIP ──────────────────────────────────────────────────────────────────
+function addToSlip(id, team, teamFlag, desc, oddsStr, american) {
+  // Remove existing leg for same team+event
+  removeFromSlip(id);
+  betSlip.push({id, team, teamFlag, desc, odds: american, oddsStr});
+  renderSlip();
+}
+
+function removeFromSlip(id) {
+  betSlip = betSlip.filter(l => l.id !== id);
+  renderSlip();
+}
+
+function clearSlip() {
+  betSlip = [];
+  renderSlip();
+}
+
+function toggleSlip() {
+  document.getElementById('slip-col').classList.toggle('expanded');
+}
+
+function renderSlip() {
+  const legsEl = document.getElementById('slip-legs');
+  const countEl = document.getElementById('slip-count');
+  const copyBtn = document.getElementById('slip-copy-btn');
+
+  countEl.textContent = betSlip.length;
+  copyBtn.disabled = betSlip.length === 0;
+
+  if (!betSlip.length) {
+    legsEl.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;white-space:nowrap;padding:0.5rem">Pick teams to add bets</div>';
+    document.getElementById('slip-combined-header').textContent = '';
+    document.getElementById('slip-payout-header').textContent = '';
+    document.getElementById('slip-odds-total').textContent = '—';
+    document.getElementById('slip-payout-total').textContent = '—';
+    return;
+  }
+
+  legsEl.innerHTML = betSlip.map(leg => `
+    <div class="slip-leg">
+      <button class="slip-leg-remove" onclick="event.stopPropagation();removeFromSlip('${leg.id}')">✕</button>
+      <div class="slip-leg-team">${leg.teamFlag} ${leg.team.name}</div>
+      <div class="slip-leg-desc">${leg.desc}</div>
+      ${leg.oddsStr && leg.oddsStr !== '—' ? `<div class="slip-leg-odds">${leg.oddsStr}</div>` : ''}
+    </div>
+  `).join('');
+
+  const legsWithOdds = betSlip.filter(l => l.odds);
+  const combined = combinedOdds(legsWithOdds);
+  const combinedStr = combined ? formatOdds(combined) : '—';
+
+  let payout = '—';
+  if (combined) {
+    const p = combined < 0 ? 100/(-combined) : combined/100;
+    payout = `$${(100 * p + 100).toFixed(0)}`;
+  }
+
+  document.getElementById('slip-combined-header').textContent = combinedStr !== '—' ? combinedStr : '';
+  document.getElementById('slip-payout-header').textContent = payout !== '—' ? `$100 → ${payout}` : '';
+  document.getElementById('slip-odds-total').textContent = combinedStr;
+  document.getElementById('slip-payout-total').textContent = payout;
+}
+
+function copySlip() {
+  const lines = betSlip.map(l => `${l.teamFlag} ${l.team.name} — ${l.desc} ${l.oddsStr || ''}`);
+  const combined = combinedOdds(betSlip.filter(l => l.odds));
+  lines.push('');
+  lines.push(`Parlay Odds: ${combined ? formatOdds(combined) : '—'}`);
+  lines.push('Built at wc2026-orpin.vercel.app');
+  navigator.clipboard.writeText(lines.join('\n'));
+
+  const btn = document.getElementById('slip-copy-btn');
+  btn.textContent = '✓ Copied!';
+  setTimeout(() => btn.textContent = '📋 Copy Parlay', 2000);
+}
+
+// Close popup on outside click
+document.addEventListener('click', (e) => {
+  const popup = document.getElementById('bet-popup');
+  if (!popup.contains(e.target)) popup.style.display = 'none';
+});
+
+init();
+</script>
+</body>
+</html>
