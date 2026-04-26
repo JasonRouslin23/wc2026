@@ -533,6 +533,13 @@ nav {
 .bet-type-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .bet-type-toggle { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 0.78rem; font-weight: 500; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; user-select: none; }
 .bet-type-toggle.on { color: var(--teal); border-color: var(--teal); background: var(--teal-dim); }
+.bet-type-mix-grid { display: grid; grid-template-columns: 1fr 90px 50px; gap: 0.55rem; margin-top: 0.65rem; align-items: center; }
+.bet-type-mix-label { font-size: 0.74rem; color: var(--text); }
+.bet-type-mix-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem; padding: 0.35rem 0.4rem; }
+.bet-type-mix-max { font-size: 0.7rem; color: var(--muted); text-align: right; font-family: 'DM Mono', monospace; }
+.bet-type-mix-status { margin-top: 0.5rem; font-size: 0.7rem; font-family: 'DM Mono', monospace; text-align: right; }
+.bet-type-mix-status.ok { color: var(--green); }
+.bet-type-mix-status.warn { color: var(--red); }
 .mix-row { display: grid; grid-template-columns: 80px 1fr 44px; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
 .mix-label { font-size: 0.75rem; font-weight: 600; }
 .mix-label.safe { color: var(--green); }
@@ -646,7 +653,7 @@ nav {
     <div class="opt-section">
       <div class="opt-label">Number of Legs <span id="opt-legs-val">8</span></div>
       <input type="range" class="legs-slider" id="opt-legs" min="3" max="16" value="8"
-             oninput="document.getElementById('opt-legs-val').textContent=this.value">
+             oninput="document.getElementById('opt-legs-val').textContent=this.value;updateBetTypeLegControls()">
       <div class="legs-display">
         <span>3</span><span>8</span><span>12</span><span>16</span>
       </div>
@@ -659,6 +666,17 @@ nav {
         <div class="bet-type-toggle on" id="toggle-advance" onclick="toggleBetType('advance')">To Advance</div>
         <div class="bet-type-toggle" id="toggle-wingroup" onclick="toggleBetType('wingroup')">To Win Group</div>
       </div>
+      <div class="bet-type-mix-grid">
+        <div class="bet-type-mix-label">To Advance legs</div>
+        <input type="number" min="0" step="1" value="8" id="opt-advance-legs" class="bet-type-mix-input" oninput="updateBetTypeLegControls()">
+        <div class="bet-type-mix-max" id="opt-advance-max">max 0</div>
+      </div>
+      <div class="bet-type-mix-grid">
+        <div class="bet-type-mix-label">To Win Group legs</div>
+        <input type="number" min="0" step="1" value="0" id="opt-wingroup-legs" class="bet-type-mix-input" oninput="updateBetTypeLegControls()">
+        <div class="bet-type-mix-max" id="opt-wingroup-max">max 0</div>
+      </div>
+      <div class="bet-type-mix-status ok" id="bet-type-mix-status">✓ Bet-type mix matches total legs</div>
     </div>
 
     <!-- Odds Mix -->
@@ -683,7 +701,7 @@ nav {
     </div>
 
     <div class="opt-actions">
-      <button class="opt-gen-btn" onclick="generateParlay()">Generate Parlay</button>
+      <button class="opt-gen-btn" id="opt-generate-btn" onclick="generateParlay()">Generate Parlay</button>
     </div>
 
     <div id="opt-result" style="display:none"></div>
@@ -695,6 +713,101 @@ nav {
 
 const betTypeState = { advance: true, wingroup: false };
 let lastMixChanged = null;
+
+function dedupePool(pool) {
+  const seen = new Set();
+  const out = [];
+  for (const p of pool) {
+    const key = `${p.team.id}-${p.desc}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
+function getOptimizerPools() {
+  const advancePool = [];
+  const winGroupPool = [];
+
+  groupsData.forEach(g => {
+    const picks = groupPicks[g.name] || {};
+    if (picks.first) {
+      advancePool.push({team: picks.first, desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.first.id]?.advance_pct});
+      winGroupPool.push({team: picks.first, desc: `Win Group ${g.name}`, type: 'wingroup', pct: (rankingsData[picks.first.id]?.advance_pct || 50) * 0.45});
+    }
+    if (picks.second) {
+      advancePool.push({team: picks.second, desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.second.id]?.advance_pct});
+    }
+  });
+
+  Object.entries(knockoutPicks).forEach(([matchId, team]) => {
+    const pr = rankingsData[team.id] || {};
+    const phaseMap = {
+      r32: {desc: 'Advance to R16', pct: pr.advance_pct},
+      r16: {desc: 'Reach QF', pct: pr.qf_pct},
+      qf:  {desc: 'Reach Semis', pct: pr.semi_pct},
+      sf:  {desc: 'Reach Final', pct: pr.final_pct},
+      final: {desc: 'Win World Cup', pct: pr.win_pct},
+    };
+    for (const [phase, info] of Object.entries(phaseMap)) {
+      if (matchId.startsWith(phase) || matchId === 'final') {
+        advancePool.push({team, desc: info.desc, type: 'advance', pct: info.pct});
+        break;
+      }
+    }
+  });
+
+  return { advancePool: dedupePool(advancePool), winGroupPool: dedupePool(winGroupPool) };
+}
+
+function updateGenerateButtonState() {
+  const safePct  = parseInt(document.getElementById('mix-safe').value);
+  const valuePct = parseInt(document.getElementById('mix-value').value);
+  const longPct  = parseInt(document.getElementById('mix-long').value);
+  const totalMix = safePct + valuePct + longPct;
+  const statusOk = document.getElementById('bet-type-mix-status').classList.contains('ok');
+  document.getElementById('opt-generate-btn').disabled = totalMix !== 100 || !statusOk;
+}
+
+function updateBetTypeLegControls() {
+  const legs = parseInt(document.getElementById('opt-legs').value);
+  const { advancePool, winGroupPool } = getOptimizerPools();
+  const advanceInput = document.getElementById('opt-advance-legs');
+  const wingroupInput = document.getElementById('opt-wingroup-legs');
+
+  const maxAdvance = betTypeState.advance ? advancePool.length : 0;
+  const maxWinGroup = betTypeState.wingroup ? winGroupPool.length : 0;
+  advanceInput.disabled = !betTypeState.advance;
+  wingroupInput.disabled = !betTypeState.wingroup;
+
+  document.getElementById('opt-advance-max').textContent = `max ${maxAdvance}`;
+  document.getElementById('opt-wingroup-max').textContent = `max ${maxWinGroup}`;
+
+  let advanceLegs = Math.max(0, parseInt(advanceInput.value) || 0);
+  let winGroupLegs = Math.max(0, parseInt(wingroupInput.value) || 0);
+
+  if (!betTypeState.advance) advanceLegs = 0;
+  if (!betTypeState.wingroup) winGroupLegs = 0;
+
+  advanceLegs = Math.min(advanceLegs, maxAdvance);
+  winGroupLegs = Math.min(winGroupLegs, maxWinGroup);
+
+  advanceInput.value = advanceLegs;
+  wingroupInput.value = winGroupLegs;
+
+  const sum = advanceLegs + winGroupLegs;
+  const status = document.getElementById('bet-type-mix-status');
+  if (sum === legs) {
+    status.textContent = '✓ Bet-type mix matches total legs';
+    status.className = 'bet-type-mix-status ok';
+  } else {
+    status.textContent = `To Advance + To Win Group must equal ${legs} legs`;
+    status.className = 'bet-type-mix-status warn';
+  }
+
+  updateGenerateButtonState();
+}
 
 function openOptimizer(event) {
   if (event) event.stopPropagation();
@@ -710,6 +823,7 @@ function openOptimizer(event) {
     betTypeState.wingroup = false;
     wingroupToggle.classList.remove('on');
   }
+  updateBetTypeLegControls();
 }
 
 function closeOptimizer(e) {
@@ -726,6 +840,7 @@ function toggleBetType(type) {
     return;
   }
   document.getElementById(`toggle-${type}`).classList.toggle('on', betTypeState[type]);
+  updateBetTypeLegControls();
 }
 
 function updateMix(changed) {
@@ -747,10 +862,13 @@ function updateMix(changed) {
     statusEl.textContent = `Total: ${total}% (must equal 100%)`;
     statusEl.className = 'mix-total warn';
   }
+  updateGenerateButtonState();
 }
 
 function generateParlay() {
   const legs     = parseInt(document.getElementById('opt-legs').value);
+  const advanceLegsRequested = parseInt(document.getElementById('opt-advance-legs').value) || 0;
+  const winGroupLegsRequested = parseInt(document.getElementById('opt-wingroup-legs').value) || 0;
   const safePct  = parseInt(document.getElementById('mix-safe').value);
   const valuePct = parseInt(document.getElementById('mix-value').value);
   const longPct  = parseInt(document.getElementById('mix-long').value);
@@ -761,42 +879,17 @@ function generateParlay() {
     return;
   }
 
-  // Build pool of all picks from bracket
-  const pool = [];
+  if (advanceLegsRequested + winGroupLegsRequested !== legs) {
+    alert('Bet-type legs must add up to total legs.');
+    return;
+  }
 
-  // Collect all teams picked to advance (1st + 2nd from groups + 3rd picks)
-  groupsData.forEach(g => {
-    const picks = groupPicks[g.name] || {};
-    if (betTypeState.advance) {
-      if (picks.first)  pool.push({team: picks.first,  desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.first.id]?.advance_pct});
-      if (picks.second) pool.push({team: picks.second, desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.second.id]?.advance_pct});
-    }
-    if (betTypeState.wingroup) {
-      if (picks.first)  pool.push({team: picks.first, desc: `Win Group ${g.name}`, type: 'wingroup', pct: (rankingsData[picks.first.id]?.advance_pct || 50) * 0.45});
-    }
-  });
-
-  // Also add knockout picks
-  Object.entries(knockoutPicks).forEach(([matchId, team]) => {
-    const pr = rankingsData[team.id] || {};
-    const phaseMap = {
-      r32: {desc: 'Advance to R16', pct: pr.advance_pct},
-      r16: {desc: 'Reach QF', pct: pr.qf_pct},
-      qf:  {desc: 'Reach Semis', pct: pr.semi_pct},
-      sf:  {desc: 'Reach Final', pct: pr.final_pct},
-      final: {desc: 'Win World Cup', pct: pr.win_pct},
-    };
-    for (const [phase, info] of Object.entries(phaseMap)) {
-      if (matchId.startsWith(phase) || matchId === 'final') {
-        if (betTypeState.advance) {
-          pool.push({team, desc: info.desc, type: 'advance', pct: info.pct});
-        }
-        break;
-      }
-    }
-  });
-
-  if (!pool.length) {
+  const { advancePool, winGroupPool } = getOptimizerPools();
+  if (advanceLegsRequested > advancePool.length || winGroupLegsRequested > winGroupPool.length) {
+    alert('Requested bet-type legs exceed available picks.');
+    return;
+  }
+  if (!advancePool.length && !winGroupPool.length) {
     document.getElementById('opt-result').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Complete the bracket first to generate a parlay.</div>';
     document.getElementById('opt-result').style.display = 'block';
     return;
@@ -811,42 +904,59 @@ function generateParlay() {
     return 'long';
   };
 
-  pool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
+  advancePool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
+  winGroupPool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
 
-  // Determine how many of each tier we need
-  const nSafe  = Math.round(legs * safePct  / 100);
-  const nValue = Math.round(legs * valuePct / 100);
-  const nLong  = legs - nSafe - nValue;
-
-  const safePool  = pool.filter(p => p.tier === 'safe').sort((a,b) => (b.pct||0)-(a.pct||0));
-  const valuePool = pool.filter(p => p.tier === 'value').sort((a,b) => (b.pct||0)-(a.pct||0));
-  const longPool  = pool.filter(p => p.tier === 'long').sort((a,b) => (a.pct||0)-(b.pct||0));
-
-  // Deduplicate by team+desc
-  const seen = new Set();
-  const pick = (arr, n) => {
+  const selectedTeamIds = new Set();
+  const pickFromArr = (arr, n, avoidDuplicates = true) => {
     const out = [];
     for (const p of arr) {
       if (out.length >= n) break;
-      const key = `${p.team.id}-${p.desc}`;
-      if (!seen.has(key)) { seen.add(key); out.push(p); }
+      if (avoidDuplicates && selectedTeamIds.has(p.team.id)) continue;
+      selectedTeamIds.add(p.team.id);
+      out.push(p);
+    }
+    if (out.length < n && avoidDuplicates) {
+      for (const p of arr) {
+        if (out.length >= n) break;
+        if (!out.some(x => x.team.id === p.team.id && x.desc === p.desc)) {
+          out.push(p);
+        }
+      }
     }
     return out;
   };
 
-  let selected = [
-    ...pick(safePool, nSafe),
-    ...pick(valuePool, nValue),
-    ...pick(longPool, Math.max(0, nLong)),
-  ];
+  const pickByTier = (pool, count) => {
+    const nSafe  = Math.round(count * safePct  / 100);
+    const nValue = Math.round(count * valuePct / 100);
+    const nLong  = count - nSafe - nValue;
+    const safePool  = pool.filter(p => p.tier === 'safe').sort((a,b) => (b.pct||0)-(a.pct||0));
+    const valuePool = pool.filter(p => p.tier === 'value').sort((a,b) => (b.pct||0)-(a.pct||0));
+    const longPool  = pool.filter(p => p.tier === 'long').sort((a,b) => (a.pct||0)-(b.pct||0));
 
-  // Fill remaining slots from any pool if we're short
-  if (selected.length < legs) {
-    const remaining = pool.filter(p => {
-      const key = `${p.team.id}-${p.desc}`;
-      return !seen.has(key);
-    }).sort((a,b) => (b.pct||0)-(a.pct||0));
-    selected = [...selected, ...pick(remaining, legs - selected.length)];
+    let chosen = [
+      ...pickFromArr(safePool, nSafe),
+      ...pickFromArr(valuePool, nValue),
+      ...pickFromArr(longPool, Math.max(0, nLong)),
+    ];
+
+    if (chosen.length < count) {
+      const remaining = pool
+        .filter(p => !chosen.some(x => x.team.id === p.team.id && x.desc === p.desc))
+        .sort((a,b) => (b.pct||0)-(a.pct||0));
+      chosen = [...chosen, ...pickFromArr(remaining, count - chosen.length, false)];
+    }
+    return chosen.slice(0, count);
+  };
+
+  const selectedAdvance = pickByTier(advancePool, advanceLegsRequested);
+  const selectedWinGroup = pickByTier(winGroupPool, winGroupLegsRequested);
+  let selected = [...selectedAdvance, ...selectedWinGroup];
+
+  if (selected.length !== legs) {
+    alert('Could not build a parlay with the exact requested bet-type mix.');
+    return;
   }
 
   // Render result
@@ -912,6 +1022,9 @@ function addParlayToSlip(legs) {
   closeOptimizer();
   document.getElementById('slip-col').classList.add('expanded');
 }
+
+updateMix();
+updateBetTypeLegControls();
 </script>
 
 <!-- Bet popup -->
