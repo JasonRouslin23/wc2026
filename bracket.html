@@ -662,20 +662,7 @@ nav {
     <!-- Bet Type -->
     <div class="opt-section">
       <div class="opt-label">Bet Types</div>
-      <div class="bet-type-row">
-        <div class="bet-type-toggle on" id="toggle-advance" onclick="toggleBetType('advance')">To Advance</div>
-        <div class="bet-type-toggle" id="toggle-wingroup" onclick="toggleBetType('wingroup')">To Win Group</div>
-      </div>
-      <div class="bet-type-mix-grid">
-        <div class="bet-type-mix-label">To Advance legs</div>
-        <input type="number" min="0" step="1" value="8" id="opt-advance-legs" class="bet-type-mix-input" oninput="updateBetTypeLegControls()">
-        <div class="bet-type-mix-max" id="opt-advance-max">max 0</div>
-      </div>
-      <div class="bet-type-mix-grid">
-        <div class="bet-type-mix-label">To Win Group legs</div>
-        <input type="number" min="0" step="1" value="0" id="opt-wingroup-legs" class="bet-type-mix-input" oninput="updateBetTypeLegControls()">
-        <div class="bet-type-mix-max" id="opt-wingroup-max">max 0</div>
-      </div>
+      <div id="opt-bet-types"></div>
       <div class="bet-type-mix-status ok" id="bet-type-mix-status">✓ Bet-type mix matches total legs</div>
     </div>
 
@@ -711,7 +698,8 @@ nav {
 <script>
 // ── OPTIMIZER ──────────────────────────────────────────────────────────────────
 
-const betTypeState = { advance: true, wingroup: false };
+let betTypeState = {};
+let optimizerMarkets = [];
 let lastMixChanged = null;
 
 function dedupePool(pool) {
@@ -729,6 +717,8 @@ function dedupePool(pool) {
 function getOptimizerPools() {
   const advancePool = [];
   const winGroupPool = [];
+  const qfPool = [];
+  const sfPool = [];
 
   groupsData.forEach(g => {
     const picks = groupPicks[g.name] || {};
@@ -741,24 +731,77 @@ function getOptimizerPools() {
     }
   });
 
-  Object.entries(knockoutPicks).forEach(([matchId, team]) => {
-    const pr = rankingsData[team.id] || {};
-    const phaseMap = {
-      r32: {desc: 'Advance to R16', pct: pr.advance_pct},
-      r16: {desc: 'Reach QF', pct: pr.qf_pct},
-      qf:  {desc: 'Reach Semis', pct: pr.semi_pct},
-      sf:  {desc: 'Reach Final', pct: pr.final_pct},
-      final: {desc: 'Win World Cup', pct: pr.win_pct},
-    };
-    for (const [phase, info] of Object.entries(phaseMap)) {
-      if (matchId.startsWith(phase) || matchId === 'final') {
-        advancePool.push({team, desc: info.desc, type: 'advance', pct: info.pct});
-        break;
-      }
-    }
+  QF_MATCHES.forEach(match => {
+    [match.home, match.away].forEach(slot => {
+      const team = knockoutPicks[slot];
+      if (!team) return;
+      const pr = rankingsData[team.id] || {};
+      qfPool.push({team, desc: 'Reach Quarterfinals', type: 'reach_qf', pct: pr.qf_pct});
+    });
   });
 
-  return { advancePool: dedupePool(advancePool), winGroupPool: dedupePool(winGroupPool) };
+  SF_MATCHES.forEach(match => {
+    [match.home, match.away].forEach(slot => {
+      const team = knockoutPicks[slot];
+      if (!team) return;
+      const pr = rankingsData[team.id] || {};
+      sfPool.push({team, desc: 'Reach Semifinals', type: 'reach_semis', pct: pr.semi_pct});
+    });
+  });
+
+  return {
+    advancePool: dedupePool(advancePool),
+    winGroupPool: dedupePool(winGroupPool),
+    qfPool: dedupePool(qfPool),
+    sfPool: dedupePool(sfPool)
+  };
+}
+
+function getStageOptimizerMarkets() {
+  const pools = getOptimizerPools();
+  const byPhase = {
+    r32: [
+      { key: 'advance', label: 'To Advance', poolKey: 'advancePool' },
+      { key: 'wingroup', label: 'To Win Group', poolKey: 'winGroupPool' },
+    ],
+    qf: [
+      { key: 'reach_qf', label: 'To Reach Quarterfinals', poolKey: 'qfPool' },
+    ],
+    sf: [
+      { key: 'reach_semis', label: 'To Reach Semifinals', poolKey: 'sfPool' },
+    ],
+  };
+  const phaseMarkets = byPhase[currentPhase] || [];
+  return phaseMarkets
+    .map(m => ({ ...m, pool: pools[m.poolKey] || [] }))
+    .filter(m => m.pool.length);
+}
+
+function renderOptimizerBetTypeControls() {
+  optimizerMarkets = getStageOptimizerMarkets();
+  const wrap = document.getElementById('opt-bet-types');
+  if (!wrap) return;
+  if (!optimizerMarkets.length) {
+    wrap.innerHTML = '<div style="font-size:0.78rem;color:var(--muted)">No eligible betting markets for this stage.</div>';
+    betTypeState = {};
+    return;
+  }
+
+  betTypeState = {};
+  optimizerMarkets.forEach((m, idx) => { betTypeState[m.key] = idx === 0; });
+
+  wrap.innerHTML = `
+    <div class="bet-type-row">
+      ${optimizerMarkets.map(m => `<div class="bet-type-toggle ${betTypeState[m.key] ? 'on' : ''}" id="toggle-${m.key}" onclick="toggleBetType('${m.key}')">${m.label}</div>`).join('')}
+    </div>
+    ${optimizerMarkets.map((m, idx) => `
+      <div class="bet-type-mix-grid">
+        <div class="bet-type-mix-label">${m.label} legs</div>
+        <input type="number" min="0" step="1" value="${idx === 0 ? 8 : 0}" id="opt-${m.key}-legs" class="bet-type-mix-input" oninput="updateBetTypeLegControls()">
+        <div class="bet-type-mix-max" id="opt-${m.key}-max">max 0</div>
+      </div>
+    `).join('')}
+  `;
 }
 
 function updateGenerateButtonState() {
@@ -772,37 +815,28 @@ function updateGenerateButtonState() {
 
 function updateBetTypeLegControls() {
   const legs = parseInt(document.getElementById('opt-legs').value);
-  const { advancePool, winGroupPool } = getOptimizerPools();
-  const advanceInput = document.getElementById('opt-advance-legs');
-  const wingroupInput = document.getElementById('opt-wingroup-legs');
+  const requestedByType = {};
 
-  const maxAdvance = betTypeState.advance ? advancePool.length : 0;
-  const maxWinGroup = betTypeState.wingroup ? winGroupPool.length : 0;
-  advanceInput.disabled = !betTypeState.advance;
-  wingroupInput.disabled = !betTypeState.wingroup;
+  optimizerMarkets.forEach(m => {
+    const input = document.getElementById(`opt-${m.key}-legs`);
+    if (!input) return;
+    const max = betTypeState[m.key] ? m.pool.length : 0;
+    input.disabled = !betTypeState[m.key];
+    document.getElementById(`opt-${m.key}-max`).textContent = `max ${max}`;
+    let requested = Math.max(0, parseInt(input.value) || 0);
+    if (!betTypeState[m.key]) requested = 0;
+    requested = Math.min(requested, max);
+    input.value = requested;
+    requestedByType[m.key] = requested;
+  });
 
-  document.getElementById('opt-advance-max').textContent = `max ${maxAdvance}`;
-  document.getElementById('opt-wingroup-max').textContent = `max ${maxWinGroup}`;
-
-  let advanceLegs = Math.max(0, parseInt(advanceInput.value) || 0);
-  let winGroupLegs = Math.max(0, parseInt(wingroupInput.value) || 0);
-
-  if (!betTypeState.advance) advanceLegs = 0;
-  if (!betTypeState.wingroup) winGroupLegs = 0;
-
-  advanceLegs = Math.min(advanceLegs, maxAdvance);
-  winGroupLegs = Math.min(winGroupLegs, maxWinGroup);
-
-  advanceInput.value = advanceLegs;
-  wingroupInput.value = winGroupLegs;
-
-  const sum = advanceLegs + winGroupLegs;
+  const sum = Object.values(requestedByType).reduce((a,b) => a+b, 0);
   const status = document.getElementById('bet-type-mix-status');
   if (sum === legs) {
     status.textContent = '✓ Bet-type mix matches total legs';
     status.className = 'bet-type-mix-status ok';
   } else {
-    status.textContent = `To Advance + To Win Group must equal ${legs} legs`;
+    status.textContent = `Bet-type legs must equal ${legs} legs`;
     status.className = 'bet-type-mix-status warn';
   }
 
@@ -811,18 +845,12 @@ function updateBetTypeLegControls() {
 
 function openOptimizer(event) {
   if (event) event.stopPropagation();
+  renderOptimizerBetTypeControls();
+  if (!optimizerMarkets.length) return;
   // Clear any pending hideBetPopup listeners first
   hideBetPopup();
   const overlay = document.getElementById('optimizer-overlay');
   overlay.style.display = 'flex';
-  // Hide "Win Group" toggle after Round of 32
-  const wingroupToggle = document.getElementById('toggle-wingroup');
-  const hideWinGroup = ['r16','qf','sf','final'].includes(currentPhase);
-  wingroupToggle.style.display = hideWinGroup ? 'none' : '';
-  if (hideWinGroup) {
-    betTypeState.wingroup = false;
-    wingroupToggle.classList.remove('on');
-  }
   updateBetTypeLegControls();
 }
 
@@ -835,7 +863,7 @@ function closeOptimizer(e) {
 function toggleBetType(type) {
   betTypeState[type] = !betTypeState[type];
   // Ensure at least one is on
-  if (!betTypeState.advance && !betTypeState.wingroup) {
+  if (!Object.values(betTypeState).some(Boolean)) {
     betTypeState[type] = true;
     return;
   }
@@ -867,8 +895,6 @@ function updateMix(changed) {
 
 function generateParlay() {
   const legs     = parseInt(document.getElementById('opt-legs').value);
-  const advanceLegsRequested = parseInt(document.getElementById('opt-advance-legs').value) || 0;
-  const winGroupLegsRequested = parseInt(document.getElementById('opt-wingroup-legs').value) || 0;
   const safePct  = parseInt(document.getElementById('mix-safe').value);
   const valuePct = parseInt(document.getElementById('mix-value').value);
   const longPct  = parseInt(document.getElementById('mix-long').value);
@@ -879,13 +905,17 @@ function generateParlay() {
     return;
   }
 
-  if (advanceLegsRequested + winGroupLegsRequested !== legs) {
+  const requestedByType = {};
+  optimizerMarkets.forEach(m => {
+    requestedByType[m.key] = parseInt(document.getElementById(`opt-${m.key}-legs`)?.value) || 0;
+  });
+
+  if (Object.values(requestedByType).reduce((a,b)=>a+b, 0) !== legs) {
     alert('Bet-type legs must add up to total legs.');
     return;
   }
 
-  const { advancePool, winGroupPool } = getOptimizerPools();
-  if (!advancePool.length && !winGroupPool.length) {
+  if (!optimizerMarkets.length) {
     document.getElementById('opt-result').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Complete the bracket first to generate a parlay.</div>';
     document.getElementById('opt-result').style.display = 'block';
     return;
@@ -900,8 +930,9 @@ function generateParlay() {
     return 'long';
   };
 
-  advancePool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
-  winGroupPool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
+  optimizerMarkets.forEach(m => {
+    m.pool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
+  });
 
   const americanImpliedProb = (odds) => {
     if (!odds) return 0;
@@ -958,13 +989,17 @@ function generateParlay() {
 
   // If both markets are enabled, pick Win Group first so elite group favorites are
   // allocated there before filling Advance from the remaining unique teams.
-  const selectedWinGroup = pickByTier(winGroupPool, winGroupLegsRequested, 'wingroup');
-  const selectedAdvance = pickByTier(advancePool, advanceLegsRequested, 'advance');
-  let selected = [...selectedAdvance, ...selectedWinGroup];
-  const allowedPools = [];
-  if (betTypeState.advance) allowedPools.push(advancePool);
-  if (betTypeState.wingroup) allowedPools.push(winGroupPool);
-  const allowedFallbackPool = allowedPools
+  const selectedByType = {};
+  let selected = [];
+  optimizerMarkets.forEach(m => {
+    if (!betTypeState[m.key]) return;
+    selectedByType[m.key] = pickByTier(m.pool, requestedByType[m.key] || 0, m.key);
+    selected = [...selected, ...selectedByType[m.key]];
+  });
+
+  const allowedFallbackPool = optimizerMarkets
+    .filter(m => betTypeState[m.key])
+    .map(m => m.pool)
     .flat()
     .filter(p => !selected.some(x => x.team.id === p.team.id && x.desc === p.desc))
     .sort((a,b) => (b.pct||0) - (a.pct||0));
@@ -972,7 +1007,9 @@ function generateParlay() {
   selected = [...selected, ...fallbackLegs].slice(0, legs);
 
   const couldNotFillAllLegs = selected.length < legs;
-  const couldNotMatchMix = selectedAdvance.length < advanceLegsRequested || selectedWinGroup.length < winGroupLegsRequested;
+  const couldNotMatchMix = optimizerMarkets.some(m =>
+    betTypeState[m.key] && (selectedByType[m.key]?.length || 0) < (requestedByType[m.key] || 0)
+  );
 
   // Render result
   const tierLabel = (tier) => {
@@ -1155,6 +1192,7 @@ async function init() {
   const rankings = await rRes.json();
   rankings.forEach(r => { rankingsData[r.id] = r; });
   renderGroups();
+  updateStageAwareBettingUI();
 }
 
 // ── PHASE NAV ─────────────────────────────────────────────────────────────────
@@ -1167,6 +1205,7 @@ function showPhase(phase) {
   ['groups','third','r32','r16','qf','sf','final'].forEach(p => {
     document.getElementById(`phase-${p}`).style.display = p === phase ? 'block' : 'none';
   });
+  updateStageAwareBettingUI();
 }
 
 function unlockPhase(phase) {
@@ -1389,9 +1428,8 @@ function checkGroupsComplete() {
 
   if (pickedCount === 12) {
     unlockPhase('third');
-    const btn = document.getElementById('build-parlay-btn');
-    if (btn) btn.style.display = 'block';
   }
+  updateStageAwareBettingUI();
 }
 
 function goToThird() {
@@ -1528,10 +1566,10 @@ function renderKnockout(phase) {
       if (!team) return `<div class="bracket-team tbd"><span class="bracket-team-flag">?</span><span class="bracket-team-name">TBD</span></div>`;
       const pr = rankingsData[team.id] || {};
       const isWinner = winner?.id === team.id;
-      const pctMap = {r32: pr.advance_pct, r16: pr.qf_pct, qf: pr.semi_pct, sf: pr.final_pct, final: pr.win_pct};
+      const pctMap = {r32: pr.advance_pct, r16: pr.qf_pct, qf: pr.qf_pct, sf: pr.semi_pct, final: pr.win_pct};
       const pct = pctMap[phase];
       const odds = formatOdds(probToAmerican(pct));
-      const phaseLabels = {r32:'Advance to R16', r16:'Reach QF', qf:'Reach Semis', sf:'Reach Final', final:'Win World Cup'};
+      const phaseLabels = {r32:'Advance to R16', r16:'Reach QF', qf:'Reach Quarterfinals', sf:'Reach Semifinals', final:'Win World Cup'};
       return `
         <div class="bracket-team ${isWinner ? 'winner' : ''}" style="display:flex;align-items:center">
           <div style="flex:1;display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;cursor:pointer"
@@ -1540,9 +1578,9 @@ function renderKnockout(phase) {
             <span class="bracket-team-name">${team.name}</span>
             <span class="bracket-team-rating">${pr.power_rating?.toFixed(1)||'—'}</span>
           </div>
-          <button onclick="event.stopPropagation();addToSlip('${team.id}-${phase}',{id:'${team.id}',name:'${team.name}',country_code:'${team.country_code}'},'${flag(team.country_code)}','${phaseLabels[phase]}','${odds}',${probToAmerican(pct)||0})"
+          ${phase === 'r16' ? '' : `<button onclick="event.stopPropagation();addToSlip('${team.id}-${phase}',{id:'${team.id}',name:'${team.name}',country_code:'${team.country_code}'},'${flag(team.country_code)}','${phaseLabels[phase]}','${odds}',${probToAmerican(pct)||0})"
             style="background:none;border:none;border-left:1px solid var(--border);color:var(--teal);width:28px;height:100%;font-size:0.9rem;cursor:pointer;padding:0 0.4rem;flex-shrink:0;transition:background 0.15s"
-            onmouseover="this.style.background='var(--teal-dim)'" onmouseout="this.style.background='none'">+</button>
+            onmouseover="this.style.background='var(--teal-dim)'" onmouseout="this.style.background='none'">+</button>`}
         </div>
       `;
     };
@@ -1613,6 +1651,18 @@ function goToPhase(phase) {
   unlockPhase(phase);
   renderKnockout(phase);
   showPhase(phase);
+}
+
+function updateStageAwareBettingUI() {
+  const hasSlipLegs = betSlip.length > 0;
+  const hasOptimizerMarkets = getStageOptimizerMarkets().length > 0;
+  const showOptimizerButton = hasOptimizerMarkets && currentPhase !== 'r16';
+  const showSlip = currentPhase !== 'r16' || hasSlipLegs;
+
+  const optimizerBtn = document.getElementById('build-parlay-btn');
+  const slipCol = document.getElementById('slip-col');
+  if (optimizerBtn) optimizerBtn.style.display = showOptimizerButton ? 'block' : 'none';
+  if (slipCol) slipCol.style.display = showSlip ? 'block' : 'none';
 }
 
 function hideBetPopup() {
@@ -1740,6 +1790,7 @@ function renderSlip() {
     document.getElementById('slip-payout-header').textContent = '';
     document.getElementById('slip-odds-total').textContent = '—';
     document.getElementById('slip-payout-total').textContent = '—';
+    updateStageAwareBettingUI();
     return;
   }
 
@@ -1766,6 +1817,7 @@ function renderSlip() {
   document.getElementById('slip-payout-header').textContent = payout !== '—' ? `$100 → ${payout}` : '';
   document.getElementById('slip-odds-total').textContent = combinedStr;
   document.getElementById('slip-payout-total').textContent = payout;
+  updateStageAwareBettingUI();
 }
 
 function copySlip() {
