@@ -793,12 +793,20 @@ function renderTeamView() {
     ...fwds.map((p,i) => ({player:p, pos:[...(formation.FWD||[])][i]||[50,25], role:'FWD'})),
   ];
 
-  // Bench = unused players, show up to 12
-  const bench = squad.filter(p => !used.has(p.id)).slice(0,12);
+  // Apply slot overrides
+  posMap.forEach((slot, idx) => {
+    if (window.slotOverrides[idx]) {
+      const overridePlayer = (teamData.squad||[]).find(p => p.id === window.slotOverrides[idx]);
+      if (overridePlayer) {
+        slot.player = overridePlayer;
+        used.add(overridePlayer.id);
+      }
+    }
+  });
 
-  // Track current XI for swapping
-  window.currentXI = posMap.map(x => x.player).filter(Boolean);
-  window.currentBench = bench;
+  // Bench = players not in XI (respecting overrides)
+  const usedIds = new Set(posMap.map(x => x.player?.id).filter(Boolean));
+  const bench = (teamData.squad||[]).filter(p => !usedIds.has(p.id)).slice(0,12);
 
   // Squad rating
   const xi = posMap.map(x => x.player).filter(Boolean);
@@ -864,7 +872,7 @@ function renderTeamView() {
 
         <!-- Formation layer -->
         <div class="formation-layer" id="formation-layer">
-          ${posMap.map(({player, pos, role}) => renderFieldCard(player, pos, role)).join('')}
+          ${posMap.map(({player, pos, role}, idx) => renderFieldCard(player, pos, role, idx)).join('')}
         </div>
       </div>
     </div>
@@ -890,7 +898,7 @@ function renderTeamView() {
   `;
 }
 
-function renderFieldCard(player, pos, role) {
+function renderFieldCard(player, pos, role, slotIdx) {
   if (!player || !pos) return '';
   const [x, y] = pos;
   const rating = player.player_rating ? Math.round(player.player_rating) : '?';
@@ -906,7 +914,8 @@ function renderFieldCard(player, pos, role) {
          ondragstart="dragStart(event, '${player.id}', 'pitch')"
          ondragend="dragEnd(event)"
          ondragover="dragOver(event)"
-         ondrop="dropPlayer(event, '${player.id}')"
+         ondragleave="dragLeave(event)"
+         ondrop="dropOnSlot(event, ${slotIdx}, '${player.id}')"
          onclick="selectPlayer('${player.id}')">
       <div class="player-card-field">
         <div class="card-top">
@@ -932,10 +941,16 @@ function renderFieldCard(player, pos, role) {
 let draggedPlayerId = null;
 let draggedFrom = null;
 
+// Manual overrides: slotIndex -> playerId
+window.slotOverrides = window.slotOverrides || {};
+// Track which slot each player is in: playerId -> slotIndex
+window.playerSlotMap = {};
+
 function dragStart(event, playerId, from) {
   draggedPlayerId = playerId;
   draggedFrom = from;
   event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', playerId);
   setTimeout(() => {
     const el = document.getElementById(`slot-${playerId}`) ||
                document.getElementById(`bench-${playerId}`);
@@ -948,6 +963,8 @@ function dragEnd(event) {
     el.style.opacity = '';
     el.classList.remove('drag-over');
   });
+  draggedPlayerId = null;
+  draggedFrom = null;
 }
 
 function dragOver(event) {
@@ -956,39 +973,37 @@ function dragOver(event) {
   event.currentTarget.classList.add('drag-over');
 }
 
-function dropPlayer(event, targetPlayerId) {
+function dragLeave(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+
+function dropOnSlot(event, slotIndex, currentPlayerId) {
   event.preventDefault();
+  event.stopPropagation();
   event.currentTarget.classList.remove('drag-over');
 
-  if (!draggedPlayerId || draggedPlayerId === targetPlayerId) return;
+  const incomingId = draggedPlayerId;
+  if (!incomingId || incomingId === currentPlayerId) return;
 
-  // Find dragged player and target player in squad
-  const squad = teamData.squad || [];
-  const draggedPlayer = squad.find(p => p.id === draggedPlayerId);
-  const targetPlayer  = squad.find(p => p.id === targetPlayerId);
+  // If dragging FROM bench onto pitch slot — replace slot player, send current to bench
+  // If dragging FROM pitch onto another pitch slot — swap the two
+  window.slotOverrides[slotIndex] = incomingId;
 
-  if (!draggedPlayer || !targetPlayer) return;
+  // If the incoming player was in another slot, put current player there
+  for (const [idx, pid] of Object.entries(window.slotOverrides)) {
+    if (pid === incomingId && parseInt(idx) !== slotIndex) {
+      window.slotOverrides[idx] = currentPlayerId;
+      break;
+    }
+  }
 
-  // Swap positions in the squad array
-  const draggedIdx = squad.indexOf(draggedPlayer);
-  const targetIdx  = squad.indexOf(targetPlayer);
-
-  // Swap shirt numbers / positions to trigger re-render
-  squad[draggedIdx] = targetPlayer;
-  squad[targetIdx]  = draggedPlayer;
-
-  // Re-render
   renderTeamView();
-
-  // Re-select the dragged player in the panel
-  setTimeout(() => selectPlayer(draggedPlayerId), 100);
-
-  draggedPlayerId = null;
-  draggedFrom = null;
+  setTimeout(() => selectPlayer(incomingId), 100);
 }
 
 function changeFormation(f) {
   currentFormation = f;
+  window.slotOverrides = {};
   renderTeamView();
   if (activePlayerId) selectPlayer(activePlayerId);
 }
