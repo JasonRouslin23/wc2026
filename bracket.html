@@ -885,10 +885,6 @@ function generateParlay() {
   }
 
   const { advancePool, winGroupPool } = getOptimizerPools();
-  if (advanceLegsRequested > advancePool.length || winGroupLegsRequested > winGroupPool.length) {
-    alert('Requested bet-type legs exceed available picks.');
-    return;
-  }
   if (!advancePool.length && !winGroupPool.length) {
     document.getElementById('opt-result').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Complete the bracket first to generate a parlay.</div>';
     document.getElementById('opt-result').style.display = 'block';
@@ -908,21 +904,13 @@ function generateParlay() {
   winGroupPool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
 
   const selectedTeamIds = new Set();
-  const pickFromArr = (arr, n, avoidDuplicates = true) => {
+  const pickFromArr = (arr, n) => {
     const out = [];
     for (const p of arr) {
       if (out.length >= n) break;
-      if (avoidDuplicates && selectedTeamIds.has(p.team.id)) continue;
+      if (selectedTeamIds.has(p.team.id)) continue;
       selectedTeamIds.add(p.team.id);
       out.push(p);
-    }
-    if (out.length < n && avoidDuplicates) {
-      for (const p of arr) {
-        if (out.length >= n) break;
-        if (!out.some(x => x.team.id === p.team.id && x.desc === p.desc)) {
-          out.push(p);
-        }
-      }
     }
     return out;
   };
@@ -945,7 +933,7 @@ function generateParlay() {
       const remaining = pool
         .filter(p => !chosen.some(x => x.team.id === p.team.id && x.desc === p.desc))
         .sort((a,b) => (b.pct||0)-(a.pct||0));
-      chosen = [...chosen, ...pickFromArr(remaining, count - chosen.length, false)];
+      chosen = [...chosen, ...pickFromArr(remaining, count - chosen.length)];
     }
     return chosen.slice(0, count);
   };
@@ -953,11 +941,18 @@ function generateParlay() {
   const selectedAdvance = pickByTier(advancePool, advanceLegsRequested);
   const selectedWinGroup = pickByTier(winGroupPool, winGroupLegsRequested);
   let selected = [...selectedAdvance, ...selectedWinGroup];
+  const allowedPools = [];
+  if (betTypeState.advance) allowedPools.push(advancePool);
+  if (betTypeState.wingroup) allowedPools.push(winGroupPool);
+  const allowedFallbackPool = allowedPools
+    .flat()
+    .filter(p => !selected.some(x => x.team.id === p.team.id && x.desc === p.desc))
+    .sort((a,b) => (b.pct||0) - (a.pct||0));
+  const fallbackLegs = pickFromArr(allowedFallbackPool, Math.max(0, legs - selected.length));
+  selected = [...selected, ...fallbackLegs].slice(0, legs);
 
-  if (selected.length !== legs) {
-    alert('Could not build a parlay with the exact requested bet-type mix.');
-    return;
-  }
+  const couldNotFillAllLegs = selected.length < legs;
+  const couldNotMatchMix = selectedAdvance.length < advanceLegsRequested || selectedWinGroup.length < winGroupLegsRequested;
 
   // Render result
   const tierLabel = (tier) => {
@@ -978,6 +973,8 @@ function generateParlay() {
   document.getElementById('opt-result').innerHTML = `
     <div class="opt-result">
       <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.6rem">${selected.length} Legs Generated</div>
+      ${couldNotFillAllLegs ? `<div style="font-size:0.72rem;color:#fbbf24;margin-bottom:0.5rem">Not enough eligible unique teams to reach ${legs} legs. Built ${selected.length} valid unique legs.</div>` : ''}
+      ${!couldNotFillAllLegs && couldNotMatchMix ? `<div style="font-size:0.72rem;color:#fbbf24;margin-bottom:0.5rem">Exact bet-type mix could not be met without duplicate teams. Filled remaining legs with best eligible non-duplicate options.</div>` : ''}
       ${selected.map(p => `
         <div class="opt-result-leg">
           ${flag(p.team.country_code)} ${p.team.name}
