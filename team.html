@@ -587,7 +587,15 @@ body {
 .form-score { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); }
 .form-stats-mini { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--teal); min-width: 30px; text-align: right; }
 
-/* Scrollbar */
+.player-slot.drag-over .player-card-field {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.bench-card.drag-over {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold);
+}
 .detail-col::-webkit-scrollbar { width: 4px; }
 .detail-col::-webkit-scrollbar-track { background: transparent; }
 .detail-col::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -785,8 +793,12 @@ function renderTeamView() {
     ...fwds.map((p,i) => ({player:p, pos:[...(formation.FWD||[])][i]||[50,25], role:'FWD'})),
   ];
 
-  // Bench = unused players
-  const bench = squad.filter(p => !used.has(p.id)).slice(0,7);
+  // Bench = unused players, show up to 12
+  const bench = squad.filter(p => !used.has(p.id)).slice(0,12);
+
+  // Track current XI for swapping
+  window.currentXI = posMap.map(x => x.player).filter(Boolean);
+  window.currentBench = bench;
 
   // Squad rating
   const xi = posMap.map(x => x.player).filter(Boolean);
@@ -859,10 +871,15 @@ function renderTeamView() {
 
     <!-- Bench -->
     <div class="bench-section">
-      <div class="bench-label">Substitutes</div>
-      <div class="bench-players">
+      <div class="bench-label">Substitutes · drag to swap</div>
+      <div class="bench-players" id="bench-strip">
         ${bench.map(p => `
-          <div class="bench-card" onclick="selectPlayer('${p.id}')">
+          <div class="bench-card" 
+               id="bench-${p.id}"
+               draggable="true"
+               onclick="selectPlayer('${p.id}')"
+               ondragstart="dragStart(event, '${p.id}', 'bench')"
+               ondragend="dragEnd(event)">
             <div class="bench-rating">${p.player_rating?Math.round(p.player_rating):'—'}</div>
             <div class="bench-name">${fmtLastName(p.name)}</div>
             <div class="bench-pos">${posAbbr(p.position)}</div>
@@ -885,6 +902,11 @@ function renderFieldCard(player, pos, role) {
   return `
     <div class="player-slot ${isGK?'gk':''}" id="slot-${player.id}"
          style="left:${x}%;top:${y}%"
+         draggable="true"
+         ondragstart="dragStart(event, '${player.id}', 'pitch')"
+         ondragend="dragEnd(event)"
+         ondragover="dragOver(event)"
+         ondrop="dropPlayer(event, '${player.id}')"
          onclick="selectPlayer('${player.id}')">
       <div class="player-card-field">
         <div class="card-top">
@@ -904,6 +926,65 @@ function renderFieldCard(player, pos, role) {
       </div>
     </div>
   `;
+}
+
+// ── Drag & Drop ───────────────────────────────────────
+let draggedPlayerId = null;
+let draggedFrom = null;
+
+function dragStart(event, playerId, from) {
+  draggedPlayerId = playerId;
+  draggedFrom = from;
+  event.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => {
+    const el = document.getElementById(`slot-${playerId}`) ||
+               document.getElementById(`bench-${playerId}`);
+    if (el) el.style.opacity = '0.4';
+  }, 0);
+}
+
+function dragEnd(event) {
+  document.querySelectorAll('.player-slot, .bench-card').forEach(el => {
+    el.style.opacity = '';
+    el.classList.remove('drag-over');
+  });
+}
+
+function dragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add('drag-over');
+}
+
+function dropPlayer(event, targetPlayerId) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+
+  if (!draggedPlayerId || draggedPlayerId === targetPlayerId) return;
+
+  // Find dragged player and target player in squad
+  const squad = teamData.squad || [];
+  const draggedPlayer = squad.find(p => p.id === draggedPlayerId);
+  const targetPlayer  = squad.find(p => p.id === targetPlayerId);
+
+  if (!draggedPlayer || !targetPlayer) return;
+
+  // Swap positions in the squad array
+  const draggedIdx = squad.indexOf(draggedPlayer);
+  const targetIdx  = squad.indexOf(targetPlayer);
+
+  // Swap shirt numbers / positions to trigger re-render
+  squad[draggedIdx] = targetPlayer;
+  squad[targetIdx]  = draggedPlayer;
+
+  // Re-render
+  renderTeamView();
+
+  // Re-select the dragged player in the panel
+  setTimeout(() => selectPlayer(draggedPlayerId), 100);
+
+  draggedPlayerId = null;
+  draggedFrom = null;
 }
 
 function changeFormation(f) {

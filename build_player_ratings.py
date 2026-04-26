@@ -80,29 +80,60 @@ POSITION_ROLE = {
 }
 
 
-def score_player_match(row: dict, prestige: float) -> float:
+def score_player_match(row: dict, prestige: float, position: str) -> float:
     """
-    Score a single player-match row. Returns a weighted contribution score.
+    Score a single player-match row. Position-aware scoring.
     """
     score = 0.0
+    pos = (position or '').lower()
 
     # Starter bonus
     if row.get("starter"):
         score += 0.5
 
-    # Attacking contributions
-    score += (row.get("goals_scored") or 0) * 3.0
-    score += (row.get("assists") or 0) * 2.0
-    score += (row.get("shots_on_target") or 0) * 0.5
-    score += (row.get("shots_off_target") or 0) * 0.2
+    goals   = row.get("goals_scored") or 0
+    assists = row.get("assists") or 0
+    sot     = row.get("shots_on_target") or 0
+    soff    = row.get("shots_off_target") or 0
+    yc      = row.get("yellow_cards") or 0
+    rc      = row.get("red_cards") or 0
+    og      = row.get("own_goals") or 0
 
-    # Discipline
-    score -= (row.get("yellow_cards") or 0) * 0.5
-    score -= (row.get("red_cards") or 0) * 2.0
-    score -= (row.get("yellow_red_cards") or 0) * 1.5
+    if pos == 'goalkeeper':
+        # GKs: reward clean sheets (implied by 0 goals against in match)
+        score += goals * 4.0       # GK goals are massive
+        score += assists * 2.0
+        score -= yc * 0.5
+        score -= rc * 2.0
+        score -= og * 3.0
+        score += 1.0               # base appearance bonus for GKs
 
-    # Own goals
-    score -= (row.get("own_goals") or 0) * 2.0
+    elif pos == 'defender':
+        score += goals * 3.5       # CB goals are valuable
+        score += assists * 2.5
+        score += sot * 0.3
+        score -= yc * 0.5
+        score -= rc * 2.0
+        score -= og * 2.5
+        score += 0.3               # appearance bonus
+
+    elif pos == 'midfielder':
+        score += goals * 2.5
+        score += assists * 2.5     # assists equally weighted for mids
+        score += sot * 0.5
+        score += soff * 0.15
+        score -= yc * 0.4
+        score -= rc * 1.5
+        score -= og * 2.0
+
+    else:  # Forward
+        score += goals * 3.0
+        score += assists * 2.0
+        score += sot * 0.5
+        score += soff * 0.2
+        score -= yc * 0.4
+        score -= rc * 1.5
+        score -= og * 2.0
 
     return score * prestige
 
@@ -153,14 +184,25 @@ def main():
     player_scores: dict[str, float] = {}
     decay = 0.92
 
+    # Load API-Football stats for bonus scoring
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT player_id, goals, assists, tackles_total, interceptions,
+                   passes_key, dribbles_success, rating, minutes, appearances
+            FROM player_apifootball_stats
+        """)
+        af_stats = {r["player_id"]: dict(r) for r in cur.fetchall()}
+
+    log.info(f"Loaded API-Football stats for {len(af_stats)} players")
+
     for player in players:
         pid = player["id"]
+        pos = (player.get("position") or "").lower()
         matches = player_form.get(pid, [])
+        af = af_stats.get(pid, {})
 
-        if not matches:
-            # No form data — assign a baseline based on position
-            pos = player.get("position", "")
-            player_scores[pid] = 2.0  # baseline
+        if not matches and not af:
+            player_scores[pid] = 2.0
             continue
 
         total_score = 0.0
@@ -168,14 +210,43 @@ def main():
 
         for i, match in enumerate(matches[:10]):
             prestige = get_prestige(match.get("competition_name", ""))
-            match_score = score_player_match(match, prestige)
+            match_score = score_player_match(match, prestige, player.get("position", ""))
             weight = decay ** i
             total_score += match_score * weight
             total_weight += weight
 
         raw = total_score / total_weight if total_weight > 0 else 0.0
-        # Shift to positive range (floor at 1.0)
-        player_scores[pid] = max(1.0, raw + 5.0)
+
+        # Blend in API-Football season stats as a bonus
+        # This particularly helps defenders/GKs who have low goal contributions
+        af_bonus = 0.0
+        if af:
+            mins = af.get("minutes") or 0
+            apps = af.get("appearances") or 1
+            if pos == 'goalkeeper':
+                # GKs: rating is the main signal
+                af_rating = float(af.get("rating") or 0)
+                af_bonus = (af_rating - 6.5) * 2.0  # 7.0 rating = +1.0 bonus
+            elif pos == 'defender':
+                tackles = (af.get("tackles_total") or 0)
+                intercepts = (af.get("interceptions") or 0)
+                af_bonus = (tackles + intercepts) / max(apps, 1) * 0.3
+                af_rating = float(af.get("rating") or 0)
+                if af_rating > 0:
+                    af_bonus += (af_rating - 6.5) * 1.5
+            elif pos == 'midfielder':
+                key_passes = (af.get("passes_key") or 0)
+                dribbles = (af.get("dribbles_success") or 0)
+                af_bonus = (key_passes / max(apps, 1)) * 0.4 + (dribbles / max(apps, 1)) * 0.2
+                af_rating = float(af.get("rating") or 0)
+                if af_rating > 0:
+                    af_bonus += (af_rating - 6.5) * 1.0
+            else:  # forward
+                af_rating = float(af.get("rating") or 0)
+                if af_rating > 0:
+                    af_bonus += (af_rating - 6.5) * 0.8
+
+        player_scores[pid] = max(1.0, raw + 5.0 + af_bonus)
 
     # Normalize scores to 0-100 scale
     all_scores = list(player_scores.values())
