@@ -1561,6 +1561,8 @@ function autoFillKnockout(mode) {
   const nextPhase = {r32:'r16', r16:'qf', qf:'sf', sf:'final'}[currentPhase];
   if (nextPhase) unlockPhase(nextPhase);
 }
+
+function toggleSlip() {
   document.getElementById('slip-col').classList.toggle('expanded');
 }
 
