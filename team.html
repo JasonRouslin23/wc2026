@@ -65,7 +65,7 @@ body {
       #0d4a20 100%
     );
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Field lines SVG */
@@ -722,6 +722,8 @@ async function init() {
 function renderTeamView() {
   const team = teamData;
   const squad = team.squad || [];
+  console.log('Squad length:', squad.length, 'Sample:', squad[0]);
+  console.log('Positions:', [...new Set(squad.map(p => p.position))]);
 
   // Separate GKs, DEFs, MIDs, FWDs
   const byPos = {
