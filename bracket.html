@@ -903,6 +903,15 @@ function generateParlay() {
   advancePool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
   winGroupPool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
 
+  const americanImpliedProb = (odds) => {
+    if (!odds) return 0;
+    if (odds < 0) {
+      const abs = Math.abs(odds);
+      return abs / (abs + 100);
+    }
+    return 100 / (odds + 100);
+  };
+
   const selectedTeamIds = new Set();
   const pickFromArr = (arr, n) => {
     const out = [];
@@ -915,13 +924,22 @@ function generateParlay() {
     return out;
   };
 
-  const pickByTier = (pool, count) => {
+  const sortStrongestFirst = (a, b) => {
+    const ap = americanImpliedProb(a.odds);
+    const bp = americanImpliedProb(b.odds);
+    return bp - ap;
+  };
+
+  const pickByTier = (pool, count, marketType) => {
     const nSafe  = Math.round(count * safePct  / 100);
     const nValue = Math.round(count * valuePct / 100);
     const nLong  = count - nSafe - nValue;
-    const safePool  = pool.filter(p => p.tier === 'safe').sort((a,b) => (b.pct||0)-(a.pct||0));
-    const valuePool = pool.filter(p => p.tier === 'value').sort((a,b) => (b.pct||0)-(a.pct||0));
-    const longPool  = pool.filter(p => p.tier === 'long').sort((a,b) => (a.pct||0)-(b.pct||0));
+    const poolSorter = marketType === 'wingroup'
+      ? sortStrongestFirst
+      : (a,b) => (b.pct||0)-(a.pct||0);
+    const safePool  = pool.filter(p => p.tier === 'safe').sort(poolSorter);
+    const valuePool = pool.filter(p => p.tier === 'value').sort(poolSorter);
+    const longPool  = pool.filter(p => p.tier === 'long').sort(poolSorter);
 
     let chosen = [
       ...pickFromArr(safePool, nSafe),
@@ -932,14 +950,16 @@ function generateParlay() {
     if (chosen.length < count) {
       const remaining = pool
         .filter(p => !chosen.some(x => x.team.id === p.team.id && x.desc === p.desc))
-        .sort((a,b) => (b.pct||0)-(a.pct||0));
+        .sort(poolSorter);
       chosen = [...chosen, ...pickFromArr(remaining, count - chosen.length)];
     }
     return chosen.slice(0, count);
   };
 
-  const selectedAdvance = pickByTier(advancePool, advanceLegsRequested);
-  const selectedWinGroup = pickByTier(winGroupPool, winGroupLegsRequested);
+  // If both markets are enabled, pick Win Group first so elite group favorites are
+  // allocated there before filling Advance from the remaining unique teams.
+  const selectedWinGroup = pickByTier(winGroupPool, winGroupLegsRequested, 'wingroup');
+  const selectedAdvance = pickByTier(advancePool, advanceLegsRequested, 'advance');
   let selected = [...selectedAdvance, ...selectedWinGroup];
   const allowedPools = [];
   if (betTypeState.advance) allowedPools.push(advancePool);
