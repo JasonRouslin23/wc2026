@@ -354,7 +354,126 @@ nav {
 .bracket-team-name { font-size: 0.75rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bracket-team-rating { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); }
 
-/* ── LOADING ── */
+/* ── OPTIMIZER PANEL ── */
+.optimizer-panel {
+  position: fixed; bottom: 48px; left: 0; right: 0; z-index: 99;
+  background: #0a1820; border-top: 1px solid var(--border);
+  transform: translateY(100%); transition: transform 0.3s ease;
+  max-height: 70vh; overflow-y: auto;
+}
+.optimizer-panel.open { transform: translateY(0); }
+
+.optimizer-inner { padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+
+.optimizer-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem;
+  letter-spacing: 0.06em; color: var(--text); margin-bottom: 0.25rem;
+}
+.optimizer-sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 1.5rem; }
+
+.optimizer-controls {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.optimizer-control-group { }
+
+.optimizer-control-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); margin-bottom: 0.5rem;
+}
+
+/* Leg count slider */
+.legs-slider {
+  width: 100%; accent-color: var(--teal);
+  height: 4px; cursor: pointer;
+}
+
+.legs-val {
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem;
+  color: var(--teal); margin-left: 0.5rem;
+}
+
+/* Bet type toggles */
+.toggle-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.toggle-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-size: 0.75rem; font-weight: 500;
+  padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer;
+  transition: all 0.15s;
+}
+.toggle-btn.on { color: var(--teal); border-color: var(--teal); background: var(--teal-dim); }
+
+/* Mode buttons */
+.mode-group { display: flex; gap: 0.5rem; flex-direction: column; }
+
+.mode-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-size: 0.75rem; font-weight: 500;
+  padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer;
+  transition: all 0.15s; text-align: left;
+}
+.mode-btn.on { color: var(--text); border-color: var(--teal); background: var(--teal-dim); }
+
+.generate-btn {
+  width: 100%; padding: 0.85rem;
+  background: var(--teal); color: #08111a;
+  border: none; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase;
+  transition: all 0.2s; margin-bottom: 1.25rem;
+}
+.generate-btn:hover { background: #6ee7ed; }
+
+/* Generated parlay */
+.generated-parlay {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+
+.parlay-header {
+  padding: 0.75rem 1rem; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.parlay-header-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 0.95rem;
+  letter-spacing: 0.06em;
+}
+
+.parlay-odds-big {
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--teal);
+}
+
+.parlay-legs-list { }
+
+.parlay-leg-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.55rem 1rem; border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+.parlay-leg-row:last-child { border-bottom: none; }
+
+.parlay-leg-flag { font-size: 1rem; }
+.parlay-leg-info { flex: 1; }
+.parlay-leg-team { font-weight: 500; }
+.parlay-leg-bet { font-size: 0.68rem; color: var(--muted); }
+.parlay-leg-odds-val { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--teal); }
+
+.parlay-actions {
+  display: flex; gap: 0.75rem; padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border); background: var(--surface);
+}
+
+.parlay-action-btn {
+  flex: 1; padding: 0.6rem;
+  border: 1px solid var(--border); background: none; color: var(--text);
+  border-radius: 7px; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;
+}
+.parlay-action-btn:hover { border-color: var(--teal); color: var(--teal); }
+.parlay-action-btn.primary { background: var(--teal); color: #08111a; border-color: var(--teal); font-weight: 700; }
 .loading {
   display: flex; align-items: center; justify-content: center;
   padding: 4rem; color: var(--muted); font-size: 0.82rem; gap: 0.75rem;
@@ -369,6 +488,58 @@ nav {
 /* Scrollbar */
 .slip-legs::-webkit-scrollbar { width: 3px; }
 .slip-legs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── PARLAY OPTIMIZER ── */
+.optimizer-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.optimizer-panel {
+  background: #0a1820; border: 1px solid var(--border);
+  border-top: 2px solid var(--teal); border-radius: 12px 12px 0 0;
+  width: 100%; max-width: 640px; padding: 1.5rem;
+  animation: slideUp 0.3s ease; max-height: 90vh; overflow-y: auto;
+}
+@keyframes slideUp { from { transform: translateY(40px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+.opt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+.opt-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 0.06em; }
+.opt-close { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; }
+.opt-close:hover { color: var(--text); }
+.opt-section { margin-bottom: 1.25rem; }
+.opt-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.6rem; display: flex; justify-content: space-between; }
+.opt-label span { color: var(--teal); font-family: 'DM Mono', monospace; }
+.bet-type-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.bet-type-toggle { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 0.78rem; font-weight: 500; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; user-select: none; }
+.bet-type-toggle.on { color: var(--teal); border-color: var(--teal); background: var(--teal-dim); }
+.mix-row { display: grid; grid-template-columns: 80px 1fr 44px; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.mix-label { font-size: 0.75rem; font-weight: 600; }
+.mix-label.safe { color: var(--green); }
+.mix-label.value { color: var(--gold); }
+.mix-label.longshot { color: var(--red); }
+.mix-slider { width: 100%; cursor: pointer; height: 4px; }
+.mix-slider.safe-s  { accent-color: var(--green); }
+.mix-slider.value-s { accent-color: var(--gold); }
+.mix-slider.long-s  { accent-color: var(--red); }
+.mix-pct { font-family: 'DM Mono', monospace; font-size: 0.75rem; text-align: right; }
+.mix-total { font-size: 0.7rem; text-align: right; font-family: 'DM Mono', monospace; margin-top: 0.25rem; }
+.mix-total.ok { color: var(--green); } .mix-total.warn { color: var(--red); }
+.opt-result { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 0.75rem; }
+.opt-result-leg { display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(26,48,72,0.5); }
+.opt-result-leg:last-child { border-bottom: none; }
+.opt-result-leg-type { font-size: 0.6rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-weight: 700; flex-shrink: 0; }
+.leg-type-safe { background: rgba(74,222,128,0.12); color: var(--green); }
+.leg-type-value { background: rgba(244,200,66,0.12); color: var(--gold); }
+.leg-type-long { background: rgba(248,113,113,0.12); color: var(--red); }
+.opt-result-odds { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--teal); margin-left: auto; flex-shrink: 0; }
+.opt-summary { display: flex; justify-content: space-between; align-items: center; padding-top: 0.6rem; border-top: 1px solid var(--border); margin-top: 0.5rem; }
+.opt-combined { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; color: var(--teal); }
+.opt-payout { font-size: 0.75rem; color: var(--muted); }
+.opt-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.opt-gen-btn { flex:1; padding: 0.7rem; background: var(--teal); color: #08111a; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 700; cursor: pointer; text-transform: uppercase; transition: all 0.2s; }
+.opt-gen-btn:hover { background: #6ee7ed; }
+.opt-add-btn { padding: 0.7rem 1rem; background: transparent; color: var(--teal); border: 1px solid var(--teal); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.opt-add-btn:hover { background: var(--teal-dim); }
 </style>
 </head>
 <body>
@@ -414,6 +585,10 @@ nav {
       </div>
       <div style="display:flex;align-items:center;gap:1rem">
         <span style="font-size:0.72rem;color:var(--muted)" id="slip-payout-header"></span>
+        <button onclick="event.stopPropagation();openOptimizer()" id="build-parlay-btn"
+          style="background:var(--teal);color:#08111a;border:none;padding:0.3rem 0.8rem;border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;display:none">
+          ⚡ Build Parlay
+        </button>
         <span class="slip-toggle">▲</span>
       </div>
     </div>
@@ -431,8 +606,273 @@ nav {
   </div>
 </div>
 
-<!-- Bet popup -->
-<div class="bet-popup" id="bet-popup" style="display:none">
+<!-- Optimizer -->
+<div class="optimizer-overlay" id="optimizer-overlay" style="display:none" onclick="closeOptimizer(event)">
+  <div class="optimizer-panel" onclick="event.stopPropagation()">
+    <div class="opt-header">
+      <div class="opt-title">⚡ Parlay Optimizer</div>
+      <button class="opt-close" onclick="closeOptimizer()">✕</button>
+    </div>
+
+    <!-- Legs -->
+    <div class="opt-section">
+      <div class="opt-label">Number of Legs <span id="opt-legs-val">8</span></div>
+      <input type="range" class="legs-slider" id="opt-legs" min="3" max="16" value="8"
+             oninput="document.getElementById('opt-legs-val').textContent=this.value">
+      <div class="legs-display">
+        <span>3</span><span>8</span><span>12</span><span>16</span>
+      </div>
+    </div>
+
+    <!-- Bet Type -->
+    <div class="opt-section">
+      <div class="opt-label">Bet Types</div>
+      <div class="bet-type-row">
+        <div class="bet-type-toggle on" id="toggle-advance" onclick="toggleBetType('advance')">To Advance</div>
+        <div class="bet-type-toggle" id="toggle-wingroup" onclick="toggleBetType('wingroup')">To Win Group</div>
+      </div>
+    </div>
+
+    <!-- Odds Mix -->
+    <div class="opt-section">
+      <div class="opt-label">Odds Mix <span id="mix-total-display">100%</span></div>
+      <div class="mix-row">
+        <div class="mix-label safe">Safe</div>
+        <input type="range" class="mix-slider safe-s" id="mix-safe" min="0" max="100" value="100" oninput="updateMix('safe')">
+        <div class="mix-pct" id="pct-safe" style="color:var(--green)">100%</div>
+      </div>
+      <div class="mix-row">
+        <div class="mix-label value">Value</div>
+        <input type="range" class="mix-slider value-s" id="mix-value" min="0" max="100" value="0" oninput="updateMix('value')">
+        <div class="mix-pct" id="pct-value" style="color:var(--gold)">0%</div>
+      </div>
+      <div class="mix-row">
+        <div class="mix-label longshot">Long Shot</div>
+        <input type="range" class="mix-slider long-s" id="mix-long" min="0" max="100" value="0" oninput="updateMix('long')">
+        <div class="mix-pct" id="pct-long" style="color:var(--red)">0%</div>
+      </div>
+      <div class="mix-total ok" id="mix-total-status">✓ Total: 100%</div>
+    </div>
+
+    <div class="opt-actions">
+      <button class="opt-gen-btn" onclick="generateParlay()">Generate Parlay</button>
+    </div>
+
+    <div id="opt-result" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+// ── OPTIMIZER ──────────────────────────────────────────────────────────────────
+
+const betTypeState = { advance: true, wingroup: false };
+let lastMixChanged = null;
+
+function openOptimizer() {
+  document.getElementById('optimizer-overlay').style.display = 'flex';
+  // Hide "Win Group" toggle in knockout stages
+  const wingroupToggle = document.getElementById('toggle-wingroup');
+  const isKnockout = ['r32','r16','qf','sf','final'].includes(currentPhase);
+  wingroupToggle.style.display = isKnockout ? 'none' : '';
+  if (isKnockout) {
+    betTypeState.wingroup = false;
+    wingroupToggle.classList.remove('on');
+  }
+}
+}
+
+function closeOptimizer(e) {
+  if (!e || e.target === document.getElementById('optimizer-overlay')) {
+    document.getElementById('optimizer-overlay').style.display = 'none';
+  }
+}
+
+function toggleBetType(type) {
+  betTypeState[type] = !betTypeState[type];
+  // Ensure at least one is on
+  if (!betTypeState.advance && !betTypeState.wingroup) {
+    betTypeState[type] = true;
+    return;
+  }
+  document.getElementById(`toggle-${type}`).classList.toggle('on', betTypeState[type]);
+}
+
+function updateMix(changed) {
+  const safe  = parseInt(document.getElementById('mix-safe').value);
+  const value = parseInt(document.getElementById('mix-value').value);
+  const long  = parseInt(document.getElementById('mix-long').value);
+  const total = safe + value + long;
+
+  document.getElementById('pct-safe').textContent  = safe + '%';
+  document.getElementById('pct-value').textContent = value + '%';
+  document.getElementById('pct-long').textContent  = long + '%';
+  document.getElementById('mix-total-display').textContent = total + '%';
+
+  const statusEl = document.getElementById('mix-total-status');
+  if (total === 100) {
+    statusEl.textContent = '✓ Total: 100%';
+    statusEl.className = 'mix-total ok';
+  } else {
+    statusEl.textContent = `Total: ${total}% (must equal 100%)`;
+    statusEl.className = 'mix-total warn';
+  }
+}
+
+function generateParlay() {
+  const legs     = parseInt(document.getElementById('opt-legs').value);
+  const safePct  = parseInt(document.getElementById('mix-safe').value);
+  const valuePct = parseInt(document.getElementById('mix-value').value);
+  const longPct  = parseInt(document.getElementById('mix-long').value);
+  const total = safePct + valuePct + longPct;
+
+  if (total !== 100) {
+    alert('Odds mix must total 100%');
+    return;
+  }
+
+  // Build pool of all picks from bracket
+  const pool = [];
+
+  // Collect all teams picked to advance (1st + 2nd from groups + 3rd picks)
+  groupsData.forEach(g => {
+    const picks = groupPicks[g.name] || {};
+    if (betTypeState.advance) {
+      if (picks.first)  pool.push({team: picks.first,  desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.first.id]?.advance_pct});
+      if (picks.second) pool.push({team: picks.second, desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.second.id]?.advance_pct});
+    }
+    if (betTypeState.wingroup) {
+      if (picks.first)  pool.push({team: picks.first, desc: `Win Group ${g.name}`, type: 'wingroup', pct: (rankingsData[picks.first.id]?.advance_pct || 50) * 0.45});
+    }
+  });
+
+  // Also add knockout picks
+  Object.entries(knockoutPicks).forEach(([matchId, team]) => {
+    const pr = rankingsData[team.id] || {};
+    const phaseMap = {
+      r32: {desc: 'Advance to R16', pct: pr.advance_pct},
+      r16: {desc: 'Reach QF', pct: pr.qf_pct},
+      qf:  {desc: 'Reach Semis', pct: pr.semi_pct},
+      sf:  {desc: 'Reach Final', pct: pr.final_pct},
+      final: {desc: 'Win World Cup', pct: pr.win_pct},
+    };
+    for (const [phase, info] of Object.entries(phaseMap)) {
+      if (matchId.startsWith(phase) || matchId === 'final') {
+        if (betTypeState.advance) {
+          pool.push({team, desc: info.desc, type: 'advance', pct: info.pct});
+        }
+        break;
+      }
+    }
+  });
+
+  if (!pool.length) {
+    document.getElementById('opt-result').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Complete the bracket first to generate a parlay.</div>';
+    document.getElementById('opt-result').style.display = 'block';
+    return;
+  }
+
+  // Classify each leg by odds tier
+  // Safe: pct > 60, Value: 25-60, Long: < 25
+  const classify = (pct) => {
+    if (!pct) return 'value';
+    if (pct > 60) return 'safe';
+    if (pct >= 25) return 'value';
+    return 'long';
+  };
+
+  pool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
+
+  // Determine how many of each tier we need
+  const nSafe  = Math.round(legs * safePct  / 100);
+  const nValue = Math.round(legs * valuePct / 100);
+  const nLong  = legs - nSafe - nValue;
+
+  const safePool  = pool.filter(p => p.tier === 'safe').sort((a,b) => (b.pct||0)-(a.pct||0));
+  const valuePool = pool.filter(p => p.tier === 'value').sort((a,b) => (b.pct||0)-(a.pct||0));
+  const longPool  = pool.filter(p => p.tier === 'long').sort((a,b) => (a.pct||0)-(b.pct||0));
+
+  // Deduplicate by team+desc
+  const seen = new Set();
+  const pick = (arr, n) => {
+    const out = [];
+    for (const p of arr) {
+      if (out.length >= n) break;
+      const key = `${p.team.id}-${p.desc}`;
+      if (!seen.has(key)) { seen.add(key); out.push(p); }
+    }
+    return out;
+  };
+
+  let selected = [
+    ...pick(safePool, nSafe),
+    ...pick(valuePool, nValue),
+    ...pick(longPool, Math.max(0, nLong)),
+  ];
+
+  // Fill remaining slots from any pool if we're short
+  if (selected.length < legs) {
+    const remaining = pool.filter(p => {
+      const key = `${p.team.id}-${p.desc}`;
+      return !seen.has(key);
+    }).sort((a,b) => (b.pct||0)-(a.pct||0));
+    selected = [...selected, ...pick(remaining, legs - selected.length)];
+  }
+
+  // Render result
+  const tierLabel = (tier) => {
+    if (tier === 'safe') return '<span class="opt-result-leg-type leg-type-safe">SAFE</span>';
+    if (tier === 'value') return '<span class="opt-result-leg-type leg-type-value">VALUE</span>';
+    return '<span class="opt-result-leg-type leg-type-long">LONG</span>';
+  };
+
+  const combined = combinedOdds(selected.filter(p => p.odds));
+  const combinedStr = combined ? formatOdds(combined) : '—';
+  let payout = '—';
+  if (combined) {
+    const p = combined < 0 ? 100/(-combined) : combined/100;
+    payout = `$${(100*p+100).toFixed(0)}`;
+  }
+
+  document.getElementById('opt-result').style.display = 'block';
+  document.getElementById('opt-result').innerHTML = `
+    <div class="opt-result">
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.6rem">${selected.length} Legs Generated</div>
+      ${selected.map(p => `
+        <div class="opt-result-leg">
+          ${flag(p.team.country_code)} ${p.team.name}
+          ${tierLabel(p.tier)}
+          <span style="font-size:0.7rem;color:var(--muted);flex:1;margin-left:0.3rem">${p.desc}</span>
+          <span class="opt-result-odds">${p.odds ? formatOdds(p.odds) : '—'}</span>
+        </div>
+      `).join('')}
+      <div class="opt-summary">
+        <div>
+          <div class="opt-combined">${combinedStr}</div>
+          <div class="opt-payout">$100 returns ${payout}</div>
+        </div>
+        <button class="opt-add-btn" onclick="addParlayToSlip(${JSON.stringify(selected).replace(/"/g,'&quot;')})">
+          Add to Slip →
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function addParlayToSlip(legs) {
+  legs.forEach(leg => {
+    addToSlip(
+      `opt-${leg.team.id}-${leg.desc}`,
+      leg.team,
+      flag(leg.team.country_code),
+      leg.desc,
+      leg.odds ? formatOdds(leg.odds) : '—',
+      leg.odds
+    );
+  });
+  closeOptimizer();
+  document.getElementById('slip-col').classList.add('expanded');
+}
+</script>
   <div class="bet-popup-title" id="popup-title">Add to Bet Slip</div>
   <div id="popup-options"></div>
 </div>
@@ -565,9 +1005,21 @@ function unlockPhase(phase) {
 function renderGroups() {
   const el = document.getElementById('phase-groups');
   el.innerHTML = `
-    <div style="margin-bottom:1rem">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">Group Stage</div>
-      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick 1st, 2nd, or 3rd place. Add bets to your slip.</div>
+    <div style="margin-bottom:1rem;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:0.75rem">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.05em;color:var(--text)">Group Stage</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.25rem">Click a team to pick 1st, 2nd, or 3rd place. Add bets to your slip.</div>
+      </div>
+      <div style="display:flex;gap:1rem;align-items:center">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;text-align:center">
+          <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Groups Picked</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--teal)" id="groups-picked-count">0/12</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;text-align:center">
+          <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">3rd Tagged</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--muted)" id="third-tagged-count">0/12</div>
+        </div>
+      </div>
     </div>
     <div class="groups-grid">
       ${groupsData.map(g => renderGroupCard(g)).join('')}
@@ -710,11 +1162,33 @@ function clearGroupPick(groupName, teamId) {
 }
 
 function checkGroupsComplete() {
-  const complete = groupsData.every(g => {
+  const pickedCount = groupsData.filter(g => {
     const picks = groupPicks[g.name] || {};
     return picks.first && picks.second;
-  });
-  if (complete) unlockPhase('third');
+  }).length;
+
+  const thirdCount = groupsData.filter(g => {
+    const picks = groupPicks[g.name] || {};
+    return picks.third;
+  }).length;
+
+  const pickedEl = document.getElementById('groups-picked-count');
+  const thirdEl  = document.getElementById('third-tagged-count');
+
+  if (pickedEl) {
+    pickedEl.textContent = `${pickedCount}/12`;
+    pickedEl.style.color = pickedCount === 12 ? 'var(--green)' : 'var(--teal)';
+  }
+  if (thirdEl) {
+    thirdEl.textContent = `${thirdCount}/12`;
+    thirdEl.style.color = thirdCount === 12 ? 'var(--teal)' : 'var(--muted)';
+  }
+
+  if (pickedCount === 12) {
+    unlockPhase('third');
+    const btn = document.getElementById('build-parlay-btn');
+    if (btn) btn.style.display = 'block';
+  }
 }
 
 function goToThird() {
