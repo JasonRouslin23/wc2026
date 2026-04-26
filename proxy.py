@@ -295,7 +295,7 @@ def get_player_detail(player_id: str):
 
             # API-Football season stats
             cur.execute("""
-                SELECT af_name, league_name, season, pos, age,
+                SELECT af_name, league_name, season, af_position, af_age,
                        appearances, lineups, minutes,
                        goals, assists, shots_total, shots_on,
                        passes_total, passes_key, pass_accuracy,
