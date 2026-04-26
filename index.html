@@ -1070,16 +1070,7 @@ async function loadGroups() {
 
 // Team
 async function loadTeam(teamId) {
-  showView('team');
-  document.getElementById('team-tab').style.display = 'block';
-  document.getElementById('team-content').innerHTML = '<div class="loading"><div class="spinner"></div> Loading team…</div>';
-  try {
-    const r = await fetch(`${API}/api/teams/${teamId}`);
-    const team = await r.json();
-    renderTeam(team);
-  } catch(e) {
-    document.getElementById('team-content').innerHTML = '<div class="error-msg">Failed to load</div>';
-  }
+  window.location.href = `team.html?team=${teamId}`;
 }
 
 function renderTeam(team) {

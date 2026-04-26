@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WC2026 — Team View</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal:    #53d6dc;
+  --bg:      #06100a;
+  --card-bg: rgba(0,0,0,0.72);
+  --gold:    #f4c842;
+  --text:    #e2f4f5;
+  --muted:   #5a8a92;
+  --border:  #1a3048;
+  --surface: #0f2030;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── PITCH CONTAINER ─────────────────────── */
+.pitch-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* Grass background */
+.pitch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 7/10;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255,255,255,0.03) 0px,
+      rgba(255,255,255,0.03) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    linear-gradient(180deg,
+      #0a3d1a 0%,
+      #0d4a20 14.28%,
+      #0a3d1a 14.28%,
+      #0a3d1a 28.56%,
+      #0d4a20 28.56%,
+      #0d4a20 42.84%,
+      #0a3d1a 42.84%,
+      #0a3d1a 57.12%,
+      #0d4a20 57.12%,
+      #0d4a20 71.4%,
+      #0a3d1a 71.4%,
+      #0a3d1a 85.68%,
+      #0d4a20 85.68%,
+      #0d4a20 100%
+    );
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Field lines SVG */
+.pitch-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.25;
+}
+
+/* Atmosphere overlay */
+.pitch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 50%, transparent 40%, rgba(0,0,0,0.4) 100%);
+  pointer-events: none;
+}
+
+/* ── PLAYER CARDS ────────────────────────── */
+.formation-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.player-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: all;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* FIFA UT card style */
+.player-card-field {
+  position: relative;
+  width: 70px;
+  background: linear-gradient(160deg, rgba(20,40,30,0.95) 0%, rgba(10,25,18,0.98) 100%);
+  border: 1px solid rgba(83,214,220,0.3);
+  border-radius: 6px;
+  padding: 0;
+  transition: all 0.2s;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+
+.player-card-field::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--teal), transparent);
+  opacity: 0.8;
+}
+
+.player-slot:hover .player-card-field {
+  border-color: var(--teal);
+  transform: scale(1.08) translateY(-3px);
+  box-shadow: 0 8px 24px rgba(83,214,220,0.3);
+  z-index: 20;
+}
+
+.player-slot.active .player-card-field {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), 0 8px 24px rgba(244,200,66,0.4);
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 4px 5px 2px;
+}
+
+.card-rating {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--teal);
+}
+
+.card-pos {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(226,244,245,0.5);
+  padding-top: 2px;
+}
+
+.card-flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.card-avatar {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: rgba(83,214,220,0.05);
+}
+
+.card-name {
+  text-align: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  background: rgba(0,0,0,0.3);
+}
+
+.card-stat-bar {
+  display: flex;
+  justify-content: space-around;
+  padding: 2px 3px;
+  background: rgba(0,0,0,0.4);
+  border-top: 1px solid rgba(83,214,220,0.1);
+}
+
+.card-mini-stat {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.card-mini-stat span {
+  display: block;
+  font-size: 0.55rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* GK card different color */
+.player-slot.gk .player-card-field {
+  background: linear-gradient(160deg, rgba(40,25,5,0.95) 0%, rgba(25,15,3,0.98) 100%);
+  border-color: rgba(244,200,66,0.4);
+}
+
+.player-slot.gk .player-card-field::before {
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+
+.player-slot.gk .card-rating { color: var(--gold); }
+
+/* ── PAGE LAYOUT ─────────────────────────── */
+.team-view {
+  display: flex;
+  min-height: 100vh;
+  gap: 0;
+}
+
+.pitch-col {
+  flex: 1;
+  padding: 1rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detail-col {
+  width: 340px;
+  flex-shrink: 0;
+  background: #0a1820;
+  border-left: 1px solid var(--border);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  transition: transform 0.3s ease;
+}
+
+.detail-col.hidden {
+  transform: translateX(340px);
+  width: 0;
+  overflow: hidden;
+}
+
+/* ── TEAM HEADER ─────────────────────────── */
+.team-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(10,24,32,0.9);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.team-flag-xl { font-size: 2.5rem; line-height: 1; }
+
+.team-header-info { flex: 1; }
+
+.team-header-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.team-header-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+.squad-rating-box {
+  text-align: center;
+  background: rgba(83,214,220,0.08);
+  border: 1px solid rgba(83,214,220,0.2);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+}
+
+.squad-rating-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  color: var(--teal);
+  line-height: 1;
+}
+
+.squad-rating-lbl {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* Formation selector */
+.formation-bar {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.formation-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 0.3rem;
+}
+
+.formation-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.formation-btn:hover { color: var(--text); border-color: var(--border); }
+.formation-btn.active { color: var(--teal); border-color: var(--teal); background: rgba(83,214,220,0.08); }
+
+/* Bench */
+.bench-section {
+  background: rgba(10,24,32,0.8);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.bench-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}
+
+.bench-players {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.bench-card {
+  flex-shrink: 0;
+  width: 58px;
+  background: rgba(20,40,30,0.7);
+  border: 1px solid rgba(83,214,220,0.15);
+  border-radius: 5px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.bench-card:hover {
+  border-color: rgba(83,214,220,0.4);
+  transform: translateY(-2px);
+}
+
+.bench-rating {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem;
+  color: var(--teal);
+  line-height: 1;
+}
+
+.bench-name {
+  font-size: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bench-pos {
+  font-size: 0.5rem;
+  color: var(--muted);
+}
+
+/* ── PLAYER DETAIL PANEL ─────────────────── */
+.detail-header {
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.detail-close {
+  position: absolute;
+  top: 1rem; right: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.detail-close:hover { color: var(--text); border-color: var(--text); }
+
+.detail-player-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.detail-card-visual {
+  width: 80px;
+  background: linear-gradient(160deg, rgba(20,40,30,0.95) 0%, rgba(10,25,18,0.98) 100%);
+  border: 1px solid rgba(83,214,220,0.4);
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.detail-card-rating {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  color: var(--teal);
+  line-height: 1;
+}
+
+.detail-card-pos {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.detail-card-flag { font-size: 1.5rem; margin-top: 0.2rem; }
+
+.detail-player-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+.detail-player-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.3rem;
+  line-height: 1.6;
+}
+
+.detail-player-meta strong { color: var(--teal); }
+
+/* Stats grid */
+.stats-section { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+
+.stats-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.stat-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.6rem;
+  text-align: center;
+}
+
+.stat-item-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  color: var(--teal);
+  line-height: 1;
+}
+
+.stat-item-lbl {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+/* Rating bar */
+.rating-bar-section { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+
+.rating-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.rating-bar-label {
+  font-size: 0.68rem;
+  color: var(--muted);
+  min-width: 80px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rating-bar-track {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.rating-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal), rgba(83,214,220,0.5));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+.rating-bar-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Form mini */
+.form-section { padding: 1rem 1.25rem; }
+
+.form-match {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(26,48,72,0.5);
+  font-size: 0.75rem;
+}
+
+.form-match:last-child { border-bottom: none; }
+
+.form-result-badge {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 0.85rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.form-result-badge.W { background: rgba(74,222,128,0.15); color: #4ade80; }
+.form-result-badge.D { background: rgba(244,200,66,0.15); color: #f4c842; }
+.form-result-badge.L { background: rgba(248,113,113,0.15); color: #f87171; }
+.form-result-badge.x { background: rgba(26,48,72,0.3); color: var(--muted); }
+
+.form-opp { flex: 1; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.form-score { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+.form-stats-mini { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--teal); min-width: 30px; text-align: right; }
+
+/* Scrollbar */
+.detail-col::-webkit-scrollbar { width: 4px; }
+.detail-col::-webkit-scrollbar-track { background: transparent; }
+.detail-col::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Loading */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 4rem; color: var(--muted); font-size: 0.82rem; gap: 0.75rem;
+}
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid var(--border);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .team-view { flex-direction: column; }
+  .detail-col {
+    width: 100%;
+    height: auto;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    top: auto;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    max-height: 60vh;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+  .detail-col.visible { transform: translateY(0); }
+  .detail-col.hidden { transform: translateY(100%); width: 100%; overflow: hidden; }
+}
+</style>
+</head>
+<body>
+
+<div class="team-view" id="team-view">
+  <!-- Pitch column -->
+  <div class="pitch-col" id="pitch-col">
+    <div class="loading"><div class="spinner"></div> Loading team…</div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-col hidden" id="detail-col">
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<script>
+const API = 'https://wc2026-production-aad7.up.railway.app';
+
+const FLAGS = {
+  ESP:'🇪🇸',FRA:'🇫🇷',ENG:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',BRA:'🇧🇷',ARG:'🇦🇷',GER:'🇩🇪',POR:'🇵🇹',
+  NED:'🇳🇱',BEL:'🇧🇪',NOR:'🇳🇴',MAR:'🇲🇦',COL:'🇨🇴',JPN:'🇯🇵',USA:'🇺🇸',
+  SUI:'🇨🇭',CHE:'🇨🇭',MEX:'🇲🇽',URU:'🇺🇾',CRO:'🇭🇷',SEN:'🇸🇳',TUR:'🇹🇷',
+  SWE:'🇸🇪',ECU:'🇪🇨',AUT:'🇦🇹',PAR:'🇵🇾',CAN:'🇨🇦',SCO:'🏴󠁧󠁢󠁳󠁣󠁴󠁿',CIV:'🇨🇮',
+  EGY:'🇪🇬',CZE:'🇨🇿',ALG:'🇩🇿',IRN:'🇮🇷',AUS:'🇦🇺',TUN:'🇹🇳',KOR:'🇰🇷',
+  BIH:'🇧🇦',COD:'🇨🇩',SAU:'🇸🇦',NZL:'🇳🇿',QAT:'🇶🇦',CPV:'🇨🇻',CUW:'🇨🇼',
+  HTI:'🇭🇹',IRQ:'🇮🇶',JOR:'🇯🇴',PAN:'🇵🇦',UZB:'🇺🇿',ZAF:'🇿🇦',GHA:'🇬🇭',DEU:'🇩🇪',
+};
+const flag = c => FLAGS[c?.toUpperCase()] || '🌍';
+
+// Formation definitions — positions as [x%, y%] on pitch (0,0 = top-left)
+const FORMATIONS = {
+  '4-3-3': {
+    GK:  [[50, 88]],
+    DEF: [[15,70],[38,70],[62,70],[85,70]],
+    MID: [[22,48],[50,48],[78,48]],
+    FWD: [[20,22],[50,18],[80,22]],
+  },
+  '4-4-2': {
+    GK:  [[50,88]],
+    DEF: [[15,70],[38,70],[62,70],[85,70]],
+    MID: [[15,48],[38,48],[62,48],[85,48]],
+    FWD: [[35,22],[65,22]],
+  },
+  '4-2-3-1': {
+    GK:  [[50,88]],
+    DEF: [[15,70],[38,70],[62,70],[85,70]],
+    MID: [[35,58],[65,58]],
+    CAM: [[20,40],[50,38],[80,40]],
+    FWD: [[50,18]],
+  },
+  '3-5-2': {
+    GK:  [[50,88]],
+    DEF: [[25,72],[50,72],[75,72]],
+    MID: [[12,52],[30,46],[50,44],[70,46],[88,52]],
+    FWD: [[33,20],[67,20]],
+  },
+  '5-3-2': {
+    GK:  [[50,88]],
+    DEF: [[10,70],[27,70],[50,72],[73,70],[90,70]],
+    MID: [[25,50],[50,48],[75,50]],
+    FWD: [[33,20],[67,20]],
+  },
+  '3-4-3': {
+    GK:  [[50,88]],
+    DEF: [[25,72],[50,72],[75,72]],
+    MID: [[15,52],[38,52],[62,52],[85,52]],
+    FWD: [[20,22],[50,18],[80,22]],
+  },
+};
+
+let currentFormation = '4-3-3';
+let teamData = null;
+let activePlayerId = null;
+
+// Get team ID from URL param
+function getTeamId() {
+  return new URLSearchParams(window.location.search).get('team');
+}
+
+async function init() {
+  const teamId = getTeamId();
+  if (!teamId) {
+    document.getElementById('pitch-col').innerHTML = '<div class="loading">No team selected</div>';
+    return;
+  }
+  const res = await fetch(`${API}/api/teams/${teamId}`);
+  teamData = await res.json();
+  renderTeamView();
+}
+
+function renderTeamView() {
+  const team = teamData;
+  const squad = team.squad || [];
+
+  // Separate GKs, DEFs, MIDs, FWDs
+  const byPos = {
+    Goalkeeper: squad.filter(p => p.position === 'Goalkeeper').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Defender:   squad.filter(p => p.position === 'Defender').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Midfielder: squad.filter(p => p.position === 'Midfielder').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Forward:    squad.filter(p => p.position === 'Forward').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+  };
+
+  // Pick starting XI based on formation
+  const formation = FORMATIONS[currentFormation];
+  const starters = [];
+  const used = new Set();
+
+  const pickPlayers = (pos, count, fallback) => {
+    const pool = byPos[pos] || [];
+    const picked = [];
+    for (const p of pool) {
+      if (!used.has(p.id) && picked.length < count) {
+        picked.push(p); used.add(p.id);
+      }
+    }
+    // If not enough, try fallback positions
+    if (picked.length < count && fallback) {
+      for (const fbPos of fallback) {
+        for (const p of (byPos[fbPos]||[])) {
+          if (!used.has(p.id) && picked.length < count) {
+            picked.push(p); used.add(p.id);
+          }
+        }
+      }
+    }
+    return picked;
+  };
+
+  // Build XI based on formation slot counts
+  const formSlots = {
+    '4-3-3':  {GK:1, DEF:4, MID:3, FWD:3},
+    '4-4-2':  {GK:1, DEF:4, MID:4, FWD:2},
+    '4-2-3-1':{GK:1, DEF:4, MID:2, CAM:3, FWD:1},
+    '3-5-2':  {GK:1, DEF:3, MID:5, FWD:2},
+    '5-3-2':  {GK:1, DEF:5, MID:3, FWD:2},
+    '3-4-3':  {GK:1, DEF:3, MID:4, FWD:3},
+  };
+
+  const slots = formSlots[currentFormation];
+  const gks   = pickPlayers('Goalkeeper', slots.GK||1);
+  const defs  = pickPlayers('Defender',   slots.DEF||4, ['Midfielder']);
+  const mids  = pickPlayers('Midfielder', slots.MID||3, ['Forward','Defender']);
+  const cams  = slots.CAM ? pickPlayers('Midfielder', slots.CAM, ['Forward']) : [];
+  const fwds  = pickPlayers('Forward',    slots.FWD||3, ['Midfielder']);
+
+  // Map to formation positions
+  const posMap = [
+    ...gks.map((p,i)  => ({player:p, pos:[...(formation.GK||[[50,88]])][i]||[50,88], role:'GK'})),
+    ...defs.map((p,i) => ({player:p, pos:[...(formation.DEF||[])][i]||[50,60], role:'DEF'})),
+    ...mids.map((p,i) => ({player:p, pos:[...(formation.MID||[])][i]||[50,50], role:'MID'})),
+    ...cams.map((p,i) => ({player:p, pos:[...(formation.CAM||[])][i]||[50,40], role:'CAM'})),
+    ...fwds.map((p,i) => ({player:p, pos:[...(formation.FWD||[])][i]||[50,25], role:'FWD'})),
+  ];
+
+  // Bench = unused players
+  const bench = squad.filter(p => !used.has(p.id)).slice(0,7);
+
+  // Squad rating
+  const xi = posMap.map(x => x.player).filter(Boolean);
+  const avgRating = xi.length ? Math.round(xi.reduce((s,p) => s + (p.player_rating||50), 0) / xi.length) : 0;
+
+  const pitchCol = document.getElementById('pitch-col');
+  pitchCol.innerHTML = `
+    <!-- Team header -->
+    <div class="team-header">
+      <div class="team-flag-xl">${flag(team.country_code)}</div>
+      <div class="team-header-info">
+        <div class="team-header-name">${team.name}</div>
+        <div class="team-header-sub">Group ${team.group_name||'?'} · ${team.manager_name||'Manager TBD'}</div>
+      </div>
+      <div class="squad-rating-box">
+        <div class="squad-rating-val">${avgRating}</div>
+        <div class="squad-rating-lbl">OVR</div>
+      </div>
+    </div>
+
+    <!-- Formation selector -->
+    <div class="formation-bar">
+      <span class="formation-label">Formation:</span>
+      ${Object.keys(FORMATIONS).map(f => `
+        <button class="formation-btn ${f===currentFormation?'active':''}" onclick="changeFormation('${f}')">${f}</button>
+      `).join('')}
+    </div>
+
+    <!-- Pitch -->
+    <div class="pitch-wrapper">
+      <div class="pitch" id="pitch">
+        <!-- Field lines -->
+        <svg class="pitch-lines" viewBox="0 0 100 143" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="white" stroke-width="0.4">
+          <!-- Outline -->
+          <rect x="5" y="3" width="90" height="137"/>
+          <!-- Center line -->
+          <line x1="5" y1="71.5" x2="95" y2="71.5"/>
+          <!-- Center circle -->
+          <circle cx="50" cy="71.5" r="12"/>
+          <circle cx="50" cy="71.5" r="0.8" fill="white"/>
+          <!-- Top penalty box -->
+          <rect x="22" y="3" width="56" height="22"/>
+          <!-- Top 6-yard -->
+          <rect x="34" y="3" width="32" height="8"/>
+          <!-- Top penalty spot -->
+          <circle cx="50" cy="16" r="0.6" fill="white"/>
+          <!-- Top penalty arc -->
+          <path d="M 33 25 A 12 12 0 0 0 67 25"/>
+          <!-- Bottom penalty box -->
+          <rect x="22" y="118" width="56" height="22"/>
+          <!-- Bottom 6-yard -->
+          <rect x="34" y="132" width="32" height="8"/>
+          <!-- Bottom penalty spot -->
+          <circle cx="50" cy="127" r="0.6" fill="white"/>
+          <!-- Bottom penalty arc -->
+          <path d="M 33 118 A 12 12 0 0 1 67 118"/>
+          <!-- Corner arcs -->
+          <path d="M 5 6 A 3 3 0 0 1 8 3"/>
+          <path d="M 92 3 A 3 3 0 0 1 95 6"/>
+          <path d="M 5 137 A 3 3 0 0 0 8 140"/>
+          <path d="M 92 140 A 3 3 0 0 0 95 137"/>
+        </svg>
+
+        <!-- Formation layer -->
+        <div class="formation-layer" id="formation-layer">
+          ${posMap.map(({player, pos, role}) => renderFieldCard(player, pos, role)).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Bench -->
+    <div class="bench-section">
+      <div class="bench-label">Substitutes</div>
+      <div class="bench-players">
+        ${bench.map(p => `
+          <div class="bench-card" onclick="selectPlayer('${p.id}')">
+            <div class="bench-rating">${p.player_rating?Math.round(p.player_rating):'—'}</div>
+            <div class="bench-name">${fmtLastName(p.name)}</div>
+            <div class="bench-pos">${posAbbr(p.position)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderFieldCard(player, pos, role) {
+  if (!player || !pos) return '';
+  const [x, y] = pos;
+  const rating = player.player_rating ? Math.round(player.player_rating) : '?';
+  const isGK = role === 'GK';
+  const goals = player.goals !== null && player.goals !== undefined ? player.goals : '—';
+  const assists = player.assists !== null && player.assists !== undefined ? player.assists : '—';
+  const afRating = player.af_rating ? player.af_rating.toFixed(1) : '—';
+
+  return `
+    <div class="player-slot ${isGK?'gk':''}" id="slot-${player.id}"
+         style="left:${x}%;top:${y}%"
+         onclick="selectPlayer('${player.id}')">
+      <div class="player-card-field">
+        <div class="card-top">
+          <div class="card-rating">${rating}</div>
+          <div>
+            <div class="card-pos">${posAbbr(player.position)}</div>
+            <div class="card-flag">${flag(player.country_code)}</div>
+          </div>
+        </div>
+        <div class="card-avatar">⚽</div>
+        <div class="card-name">${fmtLastName(player.name)}</div>
+        <div class="card-stat-bar">
+          <div class="card-mini-stat"><span>${goals}</span>G</div>
+          <div class="card-mini-stat"><span>${assists}</span>A</div>
+          <div class="card-mini-stat"><span>${afRating}</span>RT</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function changeFormation(f) {
+  currentFormation = f;
+  renderTeamView();
+  if (activePlayerId) selectPlayer(activePlayerId);
+}
+
+async function selectPlayer(playerId) {
+  // Highlight active card
+  document.querySelectorAll('.player-slot').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.bench-card').forEach(s => s.classList.remove('active'));
+  const slot = document.getElementById(`slot-${playerId}`);
+  if (slot) slot.classList.add('active');
+  activePlayerId = playerId;
+
+  // Show detail panel
+  const detailCol = document.getElementById('detail-col');
+  detailCol.classList.remove('hidden');
+  detailCol.classList.add('visible');
+  document.getElementById('detail-content').innerHTML =
+    '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const res = await fetch(`${API}/api/players/${playerId}`);
+    const player = await res.json();
+    renderPlayerDetail(player);
+  } catch(e) {
+    document.getElementById('detail-content').innerHTML =
+      '<div class="loading">Failed to load player</div>';
+  }
+}
+
+function renderPlayerDetail(p) {
+  const ss = p.season_stats || {};
+  const form = p.form || [];
+  const rating = p.player_rating ? p.player_rating.toFixed(0) : '?';
+  const afRating = ss.rating ? ss.rating.toFixed(2) : '—';
+
+  // Stat bars (normalized 0-100)
+  const bars = [
+    {label:'Goals/90', val: ss.minutes && ss.goals ? Math.min(100, (ss.goals/(ss.minutes/90))*50) : 0, display: ss.goals||0},
+    {label:'Assists/90', val: ss.minutes && ss.assists ? Math.min(100, (ss.assists/(ss.minutes/90))*50) : 0, display: ss.assists||0},
+    {label:'Pass Acc', val: ss.pass_accuracy||0, display: ss.pass_accuracy ? `${ss.pass_accuracy}%` : '—'},
+    {label:'Tackles', val: ss.tackles_total ? Math.min(100, ss.tackles_total*2) : 0, display: ss.tackles_total||0},
+    {label:'Dribbles', val: ss.dribbles_success && ss.dribbles_attempts ? (ss.dribbles_success/ss.dribbles_attempts)*100 : 0, display: ss.dribbles_success||0},
+  ];
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-header">
+      <button class="detail-close" onclick="closeDetail()">✕</button>
+      <div class="detail-player-card">
+        <div class="detail-card-visual">
+          <div class="detail-card-rating">${rating}</div>
+          <div class="detail-card-pos">${posAbbr(p.position)}</div>
+          <div class="detail-card-flag">${flag(p.country_code)}</div>
+        </div>
+        <div>
+          <div class="detail-player-name">${fmtName(p.name)}</div>
+          <div class="detail-player-meta">
+            ${p.nationality || ''} · ${calcAge(p.date_of_birth)}<br>
+            <strong>${ss.league_name || p.team_name || ''}</strong><br>
+            ${ss.appearances||0} apps · ${ss.minutes||0} min<br>
+            Match Rating: <strong style="color:var(--gold)">${afRating}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-section">
+      <div class="stats-title">Season Stats · ${ss.league_name||'—'}</div>
+      <div class="stats-grid">
+        ${[
+          {v:ss.goals||0, l:'Goals'},
+          {v:ss.assists||0, l:'Assists'},
+          {v:ss.shots_on||0, l:'SOT'},
+          {v:ss.passes_key||0, l:'Key Pass'},
+          {v:ss.tackles_total||0, l:'Tackles'},
+          {v:ss.interceptions||0, l:'Intrcpt'},
+        ].map(s => `
+          <div class="stat-item">
+            <div class="stat-item-val">${s.v}</div>
+            <div class="stat-item-lbl">${s.l}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="rating-bar-section">
+      <div class="stats-title">Attributes</div>
+      ${bars.map(b => `
+        <div class="rating-bar-row">
+          <div class="rating-bar-label">${b.label}</div>
+          <div class="rating-bar-track">
+            <div class="rating-bar-fill" style="width:${b.val}%"></div>
+          </div>
+          <div class="rating-bar-val">${b.display}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="form-section">
+      <div class="stats-title">Recent Form</div>
+      ${form.length ? form.map(m => {
+        const goals = m.goals_scored||0;
+        const assists = m.assists||0;
+        const opp = m.home_team_name === p.team_name ? m.away_team_name : m.home_team_name;
+        const score = m.home_score !== null ? `${m.home_score}–${m.away_score}` : '?';
+        const dt = m.kickoff_utc ? new Date(m.kickoff_utc).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+        const contribution = goals||assists ? `${goals}G ${assists}A` : m.starter?'▶':'↔';
+        return `
+          <div class="form-match">
+            <div class="form-result-badge x">${dt}</div>
+            <div class="form-opp">${opp||'?'} · ${m.competition_name||''}</div>
+            <div class="form-score">${score}</div>
+            <div class="form-stats-mini">${contribution}</div>
+          </div>
+        `;
+      }).join('') : '<div style="color:var(--muted);font-size:0.78rem;padding:0.5rem 0">No form data available</div>'}
+    </div>
+  `;
+}
+
+function closeDetail() {
+  document.getElementById('detail-col').classList.add('hidden');
+  document.getElementById('detail-col').classList.remove('visible');
+  document.querySelectorAll('.player-slot').forEach(s => s.classList.remove('active'));
+  activePlayerId = null;
+}
+
+function fmtLastName(n) {
+  if (!n) return '?';
+  const name = n.includes(',') ? n.split(',')[0].trim() : n.split(' ').pop();
+  return name.substring(0,10);
+}
+
+function fmtName(n) {
+  if (!n) return '—';
+  if (n.includes(',')) { const [l,f]=n.split(',').map(s=>s.trim()); return `${f} ${l}`; }
+  return n;
+}
+
+function posAbbr(pos) {
+  const map = {Goalkeeper:'GK',Defender:'DEF',Midfielder:'MID',Forward:'FWD'};
+  return map[pos]||pos||'?';
+}
+
+function calcAge(dob) {
+  if (!dob) return '';
+  return Math.floor((Date.now()-new Date(dob))/(365.25*24*3600*1000))+'y';
+}
+
+init();
+</script>
+</body>
+</html>
