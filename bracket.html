@@ -788,12 +788,12 @@ function getStageOptimizerMarkets() {
       { key: 'reach_semis', label: 'To Reach Semifinals', poolKey: 'sfPool' },
     ],
     final: [
-      { key: 'advance', label: 'To Advance', poolKey: 'advancePool' },
-      { key: 'wingroup', label: 'To Win Group', poolKey: 'winGroupPool' },
-      { key: 'reach_qf', label: 'To Reach Quarterfinals', poolKey: 'qfPool' },
-      { key: 'reach_semis', label: 'To Reach Semifinals', poolKey: 'sfPool' },
-      { key: 'reach_final', label: 'To Reach Final', poolKey: 'finalPool' },
       { key: 'win_wc', label: 'To Win World Cup', poolKey: 'championPool' },
+      { key: 'reach_final', label: 'To Reach Final', poolKey: 'finalPool' },
+      { key: 'reach_semis', label: 'To Reach Semifinals', poolKey: 'sfPool' },
+      { key: 'reach_qf', label: 'To Reach Quarterfinals', poolKey: 'qfPool' },
+      { key: 'wingroup', label: 'To Win Group', poolKey: 'winGroupPool' },
+      { key: 'advance', label: 'To Advance', poolKey: 'advancePool' },
     ],
   };
   const phaseMarkets = byPhase[currentPhase] || [];
@@ -959,6 +959,11 @@ function generateParlay() {
     m.pool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
   });
 
+  const getMarketSelectionOrder = () => {
+    if (currentPhase !== 'final') return optimizerMarkets.map(m => m.key);
+    return ['win_wc', 'reach_final', 'reach_semis', 'reach_qf', 'wingroup', 'advance'];
+  };
+
   const americanImpliedProb = (odds) => {
     if (!odds) return 0;
     if (odds < 0) {
@@ -1016,10 +1021,13 @@ function generateParlay() {
   // allocated there before filling Advance from the remaining unique teams.
   const selectedByType = {};
   let selected = [];
-  optimizerMarkets.forEach(m => {
-    if (!betTypeState[m.key]) return;
-    selectedByType[m.key] = pickByTier(m.pool, requestedByType[m.key] || 0, m.key);
-    selected = [...selected, ...selectedByType[m.key]];
+  const marketByKey = Object.fromEntries(optimizerMarkets.map(m => [m.key, m]));
+  const selectionOrder = getMarketSelectionOrder().filter(key => marketByKey[key]);
+  selectionOrder.forEach(key => {
+    const market = marketByKey[key];
+    if (!betTypeState[key]) return;
+    selectedByType[key] = pickByTier(market.pool, requestedByType[key] || 0, key);
+    selected = [...selected, ...selectedByType[key]];
   });
 
   const allowedFallbackPool = optimizerMarkets
