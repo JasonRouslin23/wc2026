@@ -939,17 +939,36 @@ function generateParlay() {
     return;
   }
 
-  // Classify each leg by odds tier
-  // Safe: pct > 60, Value: 25-60, Long: < 25
-  const classify = (pct) => {
+  // Classify each leg by odds tier.
+  // Default logic (relative): Safe pct > 60, Value 25-60, Long < 25.
+  // Market-specific logic for "To Advance" (American odds):
+  //   Safe: odds < -700
+  //   Value: -700 through -300
+  //   Long:  odds > -300
+  const classifyDefault = (pct) => {
     if (!pct) return 'value';
     if (pct > 60) return 'safe';
     if (pct >= 25) return 'value';
     return 'long';
   };
+  const classifyForMarket = (marketKey, odds, pct) => {
+    if (marketKey === 'advance') {
+      if (typeof odds !== 'number' || Number.isNaN(odds)) return 'value';
+      if (odds < -700) return 'safe';
+      if (odds <= -300) return 'value';
+      return 'long';
+    }
+    return classifyDefault(pct);
+  };
 
   optimizerMarkets.forEach(m => {
-    m.pool.forEach(p => { p.tier = classify(p.pct); p.odds = probToAmerican(p.pct); });
+    m.pool.forEach(p => {
+      const odds = (typeof p.odds === 'number' && !Number.isNaN(p.odds))
+        ? p.odds
+        : probToAmerican(p.pct);
+      p.odds = odds;
+      p.tier = classifyForMarket(m.key, odds, p.pct);
+    });
   });
 
   const americanImpliedProb = (odds) => {
@@ -1007,8 +1026,8 @@ function generateParlay() {
     ];
 
     if (chosen.length < count) {
-      const remaining = pool
-        .filter(p => !chosen.some(x => x.team.id === p.team.id && x.desc === p.desc))
+      const remainingBase = pool.filter(p => !chosen.some(x => x.team.id === p.team.id && x.desc === p.desc));
+      const sortedRemaining = (arr) => arr
         .map(p => ({ p, n: Math.random() }))
         .sort((a, b) => {
           const cmp = poolSorter(a.p, b.p);
@@ -1016,6 +1035,17 @@ function generateParlay() {
           return a.n - b.n;
         })
         .map(x => x.p);
+
+      // For To Advance, keep safe picks as last-resort in fallback so
+      // long-shot heavy mixes do not pull very short favorites unless needed.
+      const remaining = marketType === 'advance'
+        ? [
+            ...sortedRemaining(remainingBase.filter(p => p.tier === 'long')),
+            ...sortedRemaining(remainingBase.filter(p => p.tier === 'value')),
+            ...sortedRemaining(remainingBase.filter(p => p.tier === 'safe')),
+          ]
+        : sortedRemaining(remainingBase);
+
       chosen = [...chosen, ...pickFromArr(remaining, count - chosen.length)];
     }
     return chosen.slice(0, count);
