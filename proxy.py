@@ -249,12 +249,16 @@ def get_power_rankings():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT
-                    id, name, short_name, abbreviation, country_code, group_name,
-                    jersey_primary, jersey_secondary,
-                    power_rating, power_rank, tier
-                FROM teams
-                WHERE power_rank IS NOT NULL
-                ORDER BY power_rank
+                    t.id, t.name, t.short_name, t.abbreviation, t.country_code, t.group_name,
+                    t.jersey_primary, t.jersey_secondary,
+                    t.power_rating, t.power_rank, t.tier,
+                    pr.attack, pr.defense, pr.win_prob, pr.group_adv_prob,
+                    pr.win_american, pr.win_decimal, pr.group_american,
+                    pr.n_matches, pr.conf, pr.computed_at
+                FROM teams t
+                LEFT JOIN power_rankings pr ON pr.team_id = t.id
+                WHERE t.power_rank IS NOT NULL
+                ORDER BY t.power_rank
             """)
             return jsonify_rows(rows(cur))
     finally:
