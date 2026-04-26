@@ -727,10 +727,10 @@ function renderTeamView() {
 
   // Separate GKs, DEFs, MIDs, FWDs
   const byPos = {
-    Goalkeeper: squad.filter(p => p.position === 'Goalkeeper').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
-    Defender:   squad.filter(p => p.position === 'Defender').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
-    Midfielder: squad.filter(p => p.position === 'Midfielder').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
-    Forward:    squad.filter(p => p.position === 'Forward').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Goalkeeper: squad.filter(p => p.position?.toLowerCase() === 'goalkeeper').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Defender:   squad.filter(p => p.position?.toLowerCase() === 'defender').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Midfielder: squad.filter(p => p.position?.toLowerCase() === 'midfielder').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
+    Forward:    squad.filter(p => p.position?.toLowerCase() === 'forward').sort((a,b) => (b.player_rating||0)-(a.player_rating||0)),
   };
 
   // Pick starting XI based on formation
