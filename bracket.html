@@ -706,12 +706,13 @@ let generatedParlaySignature = '';
 let generatedLegIdsCache = new Set();
 let generatedUsedTeamIds = new Set();
 let optimizerRunMessage = '';
+let lastR32Resolution = null;
 
 function dedupePool(pool) {
   const seen = new Set();
   const out = [];
   for (const p of pool) {
-    const key = `${p.team.id}-${p.desc}`;
+    const key = p.dedupeKey || `${p.team.id}-${p.desc}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(p);
@@ -730,12 +731,25 @@ function getOptimizerPools() {
   groupsData.forEach(g => {
     const picks = groupPicks[g.name] || {};
     if (picks.first) {
-      advancePool.push({team: picks.first, desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.first.id]?.advance_pct});
+      advancePool.push({team: picks.first, desc: `Advance from Group ${g.name}`, type: 'advance', source: 'winner', sourceGroup: g.name, dedupeKey: String(picks.first.id), pct: rankingsData[picks.first.id]?.advance_pct});
       winGroupPool.push({team: picks.first, desc: `Win Group ${g.name}`, type: 'wingroup', pct: (rankingsData[picks.first.id]?.advance_pct || 50) * 0.45});
     }
     if (picks.second) {
-      advancePool.push({team: picks.second, desc: `Advance from Group ${g.name}`, type: 'advance', pct: rankingsData[picks.second.id]?.advance_pct});
+      advancePool.push({team: picks.second, desc: `Advance from Group ${g.name}`, type: 'advance', source: 'runner-up', sourceGroup: g.name, dedupeKey: String(picks.second.id), pct: rankingsData[picks.second.id]?.advance_pct});
     }
+  });
+
+  const selectedThirdTeams = getSelectedThirdPlaceTeams();
+  selectedThirdTeams.forEach(team => {
+    advancePool.push({
+      team,
+      desc: `Advance as Best 3rd (${team.group})`,
+      type: 'advance',
+      source: 'third-place',
+      sourceGroup: team.group,
+      dedupeKey: String(team.id),
+      pct: rankingsData[team.id]?.advance_pct
+    });
   });
 
   QF_MATCHES.forEach(match => {
@@ -971,6 +985,27 @@ function generateParlay() {
     });
   });
 
+  const debugCandidateSummary = (market) => {
+    const counts = { safe: 0, value: 0, long: 0 };
+    const sources = { winner: 0, 'runner-up': 0, 'third-place': 0, unknown: 0 };
+    market.pool.forEach(p => {
+      counts[p.tier] = (counts[p.tier] || 0) + 1;
+      const src = p.source || 'unknown';
+      sources[src] = (sources[src] || 0) + 1;
+    });
+    console.debug('[WC26][PARLAY] Advance candidate summary', {
+      totalCandidates: market.pool.length,
+      safeCandidates: counts.safe || 0,
+      valueCandidates: counts.value || 0,
+      longShotCandidates: counts.long || 0,
+      sourceCounts: sources
+    });
+  };
+
+  if (freshMarket.key === 'advance') {
+    debugCandidateSummary(freshMarket);
+  }
+
   const americanImpliedProb = (odds) => {
     if (!odds) return 0;
     if (odds < 0) {
@@ -1006,6 +1041,8 @@ function generateParlay() {
     const nLong  = count - nSafe - nValue;
     const poolSorter = marketType === 'wingroup'
       ? sortStrongestFirst
+      : marketType === 'advance'
+      ? (a, b) => americanImpliedProb(a.odds) - americanImpliedProb(b.odds)
       : (a,b) => (b.pct||0)-(a.pct||0);
     const sortWithJitter = (arr) => arr
       .map(p => ({ p, n: Math.random() }))
@@ -1072,6 +1109,14 @@ function generateParlay() {
   generatedParlayResult = selected.slice();
   generatedParlaySignature = selectedSignature;
   generatedLegIdsCache = new Set(selected.map(p => `${p.team.id}-${p.desc}`));
+  console.debug('[WC26][PARLAY] Final selected legs', selected.map(p => ({
+    teamId: p.team.id,
+    teamName: p.team.name,
+    source: p.source || 'unknown',
+    odds: p.odds,
+    bucket: p.tier,
+    market: freshMarket.key
+  })));
 
   // Render result
   const tierLabel = (tier) => {
@@ -1579,6 +1624,11 @@ function toggleThird(teamId, teamName, countryCode, group) {
 
 function goToR32() {
   unlockPhase('r32');
+  const build = buildAndValidateRoundOf32();
+  if (!build.ok) {
+    alert('Round of 32 bracket is invalid (duplicate/missing teams). Please review group and 3rd-place selections.');
+    return;
+  }
   renderKnockout('r32');
   showPhase('r32');
 }
@@ -1593,23 +1643,100 @@ function resolveTeam(slot) {
     return groupPicks[slot.group]?.second || null;
   }
   if (slot.type === 'best3rd') {
-    // Find any selected 3rd place team from one of the eligible groups
-    for (const g of slot.groups) {
-      const team = groupPicks[g]?.third;
-      if (team && thirdPicks.includes(team.id)) return team;
-    }
-    // Fallback: find any 3rd pick from eligible groups
-    for (const g of slot.groups) {
-      const picks = groupPicks[g] || {};
-      const t = picks.third || groupsData.find(gd=>gd.name===g)?.teams?.find(t=>
-        t.id !== picks.first?.id && t.id !== picks.second?.id
-      );
-      if (t && thirdPicks.includes(t.id)) return t;
-    }
     return null;
   }
   // For knockout rounds — look up previous match winner
   return knockoutPicks[slot] || null;
+}
+
+function getSelectedThirdPlaceTeams() {
+  const selected = [];
+  const seenIds = new Set();
+  for (const g of groupsData) {
+    const picks = groupPicks[g.name] || {};
+    const t = picks.third || g.teams.find(team =>
+      team.id !== picks.first?.id && team.id !== picks.second?.id
+    );
+    if (!t || !thirdPicks.includes(t.id)) continue;
+    if (seenIds.has(t.id)) continue;
+    seenIds.add(t.id);
+    selected.push({...t, group: g.name});
+  }
+  return selected;
+}
+
+function buildAndValidateRoundOf32() {
+  const slotTeams = {};
+  const usedTeamIds = new Set();
+  const selectedThirdByGroup = new Map(getSelectedThirdPlaceTeams().map(t => [t.group, t]));
+
+  for (const match of R32_MATCHES) {
+    for (const side of ['home', 'away']) {
+      const slot = match[side];
+      const slotKey = `${match.id}:${side}`;
+      let team = null;
+      if (slot.type === 'winner') {
+        team = groupPicks[slot.group]?.first || null;
+      } else if (slot.type === 'runner-up') {
+        team = groupPicks[slot.group]?.second || null;
+      } else if (slot.type === 'best3rd') {
+        for (const g of slot.groups) {
+          const candidate = selectedThirdByGroup.get(g);
+          if (!candidate) continue;
+          if (usedTeamIds.has(candidate.id)) continue;
+          team = candidate;
+          break;
+        }
+      } else {
+        team = knockoutPicks[slot] || null;
+      }
+      slotTeams[slotKey] = team || null;
+      if (team?.id) usedTeamIds.add(team.id);
+    }
+  }
+
+  const teams = Object.values(slotTeams).filter(Boolean);
+  const idCounts = new Map();
+  teams.forEach(t => idCounts.set(t.id, (idCounts.get(t.id) || 0) + 1));
+  const duplicateTeams = teams.filter(t => (idCounts.get(t.id) || 0) > 1)
+    .map(t => ({ id: t.id, name: t.name }));
+  const uniqueIds = new Set(teams.map(t => t.id));
+  const validation = {
+    totalTeams: teams.length,
+    uniqueTeamIds: uniqueIds.size,
+    duplicateTeams,
+    thirdPlaceSelected: getSelectedThirdPlaceTeams().length,
+    ok: teams.length === 32 && uniqueIds.size === 32
+  };
+
+  console.debug('[WC26][R32] Bracket validation', validation);
+  if (!validation.ok) {
+    console.error('[WC26][R32] Invalid Round of 32 bracket detected', validation);
+  }
+
+  lastR32Resolution = { slotTeams, validation };
+  return { ...validation, slotTeams };
+}
+
+function validateRoundOf32IntegrityHelper() {
+  const built = buildAndValidateRoundOf32();
+  const hasLongShotAdvance = getOptimizerPools().advancePool.some(p => {
+    const odds = (typeof p.odds === 'number' && !Number.isNaN(p.odds))
+      ? p.odds
+      : probToAmerican(p.pct);
+    return typeof odds === 'number' && !Number.isNaN(odds) && odds > -300;
+  });
+  const includesThirdInAdvance = getOptimizerPools().advancePool.some(p => p.source === 'third-place');
+  const passed = built.ok && built.thirdPlaceSelected > 0 && includesThirdInAdvance && hasLongShotAdvance;
+  console.debug('[WC26][VALIDATION] R32/parlay helper', {
+    passed,
+    totalTeams: built.totalTeams,
+    uniqueTeamIds: built.uniqueTeamIds,
+    thirdPlaceSelected: built.thirdPlaceSelected,
+    includesThirdInAdvance,
+    hasLongShotAdvance
+  });
+  return { passed, ...built, includesThirdInAdvance, hasLongShotAdvance };
 }
 
 function renderKnockout(phase) {
@@ -1623,14 +1750,15 @@ function renderKnockout(phase) {
 
   const cfg = phaseConfig[phase];
   const el = document.getElementById(`phase-${phase}`);
+  const r32Build = phase === 'r32' ? buildAndValidateRoundOf32() : null;
 
   const matchesHtml = cfg.matches.map(match => {
-    const homeTeam = phase === 'r32' ?
-      resolveTeam(match.home) :
-      knockoutPicks[match.home] || null;
-    const awayTeam = phase === 'r32' ?
-      resolveTeam(match.away) :
-      knockoutPicks[match.away] || null;
+    const homeTeam = phase === 'r32'
+      ? (r32Build.slotTeams[`${match.id}:home`] || null)
+      : knockoutPicks[match.home] || null;
+    const awayTeam = phase === 'r32'
+      ? (r32Build.slotTeams[`${match.id}:away`] || null)
+      : knockoutPicks[match.away] || null;
 
     const winner = knockoutPicks[match.id];
 
@@ -1667,6 +1795,18 @@ function renderKnockout(phase) {
       </div>
     `;
   }).join('');
+
+  if (phase === 'r32') {
+    const built = r32Build;
+    if (!built.ok) {
+      el.innerHTML = `
+        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:1rem;color:#fecaca">
+          Invalid Round of 32 data: expected 32 unique teams but got ${built.uniqueTeamIds}/${built.totalTeams}. Check group picks and best 3rd-place selections.
+        </div>
+      `;
+      return;
+    }
+  }
 
   el.innerHTML = `
     <div style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
@@ -1821,11 +1961,13 @@ function autoFillKnockout(mode) {
   };
   const matches = phaseMatches[currentPhase];
   if (!matches) return;
+  const r32Build = currentPhase === 'r32' ? buildAndValidateRoundOf32() : null;
+  if (currentPhase === 'r32' && !r32Build.ok) return;
 
   matches.forEach(match => {
     const allTeams = groupsData.flatMap(g => g.teams);
-    const homeTeam = currentPhase === 'r32' ? resolveTeam(match.home) : knockoutPicks[match.home];
-    const awayTeam = currentPhase === 'r32' ? resolveTeam(match.away) : knockoutPicks[match.away];
+    const homeTeam = currentPhase === 'r32' ? r32Build.slotTeams[`${match.id}:home`] : knockoutPicks[match.home];
+    const awayTeam = currentPhase === 'r32' ? r32Build.slotTeams[`${match.id}:away`] : knockoutPicks[match.away];
     if (!homeTeam || !awayTeam) return;
 
     const homePr = rankingsData[homeTeam.id]?.power_rating || 50;
