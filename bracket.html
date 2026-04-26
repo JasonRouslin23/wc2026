@@ -701,6 +701,11 @@ nav {
 let betTypeState = {};
 let optimizerMarkets = [];
 let lastMixChanged = null;
+let generatedParlayResult = [];
+let generatedParlaySignature = '';
+let generatedLegIdsCache = new Set();
+let generatedUsedTeamIds = new Set();
+let optimizerRunMessage = '';
 
 function dedupePool(pool) {
   const seen = new Set();
@@ -917,13 +922,18 @@ function generateParlay() {
     return;
   }
 
-  const selectedMarket = optimizerMarkets.find(m => betTypeState[m.key]);
-  if (!selectedMarket) {
-    alert('Select one bet type / market first.');
-    return;
-  }
+  const selectedMarketKey = optimizerMarkets.find(m => betTypeState[m.key])?.key;
 
-  if (!optimizerMarkets.length) {
+  // Always rebuild market pools fresh from current bracket state.
+  optimizerMarkets = getStageOptimizerMarkets();
+  if (selectedMarketKey && optimizerMarkets.some(m => m.key === selectedMarketKey)) {
+    Object.keys(betTypeState).forEach(k => { betTypeState[k] = k === selectedMarketKey; });
+  } else if (optimizerMarkets.length) {
+    betTypeState = {};
+    optimizerMarkets.forEach((m, idx) => { betTypeState[m.key] = idx === 0; });
+  }
+  const freshMarket = optimizerMarkets.find(m => betTypeState[m.key]) || optimizerMarkets[0];
+  if (!freshMarket) {
     document.getElementById('opt-result').innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Complete the bracket first to generate a parlay.</div>';
     document.getElementById('opt-result').style.display = 'block';
     return;
@@ -952,12 +962,14 @@ function generateParlay() {
   };
 
   const selectedTeamIds = new Set();
+  generatedUsedTeamIds = new Set();
   const pickFromArr = (arr, n) => {
     const out = [];
     for (const p of arr) {
       if (out.length >= n) break;
       if (selectedTeamIds.has(p.team.id)) continue;
       selectedTeamIds.add(p.team.id);
+      generatedUsedTeamIds.add(p.team.id);
       out.push(p);
     }
     return out;
@@ -976,9 +988,17 @@ function generateParlay() {
     const poolSorter = marketType === 'wingroup'
       ? sortStrongestFirst
       : (a,b) => (b.pct||0)-(a.pct||0);
-    const safePool  = pool.filter(p => p.tier === 'safe').sort(poolSorter);
-    const valuePool = pool.filter(p => p.tier === 'value').sort(poolSorter);
-    const longPool  = pool.filter(p => p.tier === 'long').sort(poolSorter);
+    const sortWithJitter = (arr) => arr
+      .map(p => ({ p, n: Math.random() }))
+      .sort((a, b) => {
+        const cmp = poolSorter(a.p, b.p);
+        if (cmp !== 0) return cmp;
+        return a.n - b.n;
+      })
+      .map(x => x.p);
+    const safePool  = sortWithJitter(pool.filter(p => p.tier === 'safe'));
+    const valuePool = sortWithJitter(pool.filter(p => p.tier === 'value'));
+    const longPool  = sortWithJitter(pool.filter(p => p.tier === 'long'));
 
     let chosen = [
       ...pickFromArr(safePool, nSafe),
@@ -989,15 +1009,39 @@ function generateParlay() {
     if (chosen.length < count) {
       const remaining = pool
         .filter(p => !chosen.some(x => x.team.id === p.team.id && x.desc === p.desc))
-        .sort(poolSorter);
+        .map(p => ({ p, n: Math.random() }))
+        .sort((a, b) => {
+          const cmp = poolSorter(a.p, b.p);
+          if (cmp !== 0) return cmp;
+          return a.n - b.n;
+        })
+        .map(x => x.p);
       chosen = [...chosen, ...pickFromArr(remaining, count - chosen.length)];
     }
     return chosen.slice(0, count);
   };
 
-  let selected = pickByTier(selectedMarket.pool, Math.min(legs, selectedMarket.pool.length), selectedMarket.key);
+  const targetCount = Math.min(legs, freshMarket.pool.length);
+  const buildSignature = (arr) => arr.map(p => `${p.team.id}:${p.desc}`).join('|');
+  let selected = [];
+  let attempts = 0;
+  while (attempts < 6) {
+    selectedTeamIds.clear();
+    generatedUsedTeamIds.clear();
+    selected = pickByTier(freshMarket.pool, targetCount, freshMarket.key);
+    if (!generatedParlaySignature || buildSignature(selected) !== generatedParlaySignature) break;
+    attempts += 1;
+  }
 
   const couldNotFillAllLegs = selected.length < legs;
+  const selectedSignature = buildSignature(selected);
+  const isSameAsPrevious = selectedSignature && selectedSignature === generatedParlaySignature;
+  optimizerRunMessage = isSameAsPrevious
+    ? 'Only one valid combination available for this market/mix.'
+    : '';
+  generatedParlayResult = selected.slice();
+  generatedParlaySignature = selectedSignature;
+  generatedLegIdsCache = new Set(selected.map(p => `${p.team.id}-${p.desc}`));
 
   // Render result
   const tierLabel = (tier) => {
@@ -1019,6 +1063,7 @@ function generateParlay() {
     <div class="opt-result">
       <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.6rem">${selected.length} Legs Generated</div>
       ${couldNotFillAllLegs ? `<div style="font-size:0.72rem;color:#fbbf24;margin-bottom:0.5rem">Not enough eligible unique teams to reach ${legs} legs. Built ${selected.length} valid unique legs.</div>` : ''}
+      ${optimizerRunMessage ? `<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">${optimizerRunMessage}</div>` : ''}
       ${selected.map(p => `
         <div class="opt-result-leg">
           ${flag(p.team.country_code)} ${p.team.name}
@@ -1033,7 +1078,7 @@ function generateParlay() {
           <div class="opt-payout">$100 returns ${payout}</div>
         </div>
         <div style="display:flex;gap:0.5rem">
-          <button class="opt-add-btn" onclick="resetOptimizerResult()">Generate Another</button>
+          <button class="opt-add-btn" onclick="generateAnotherParlay()">Generate Another</button>
           <button class="opt-add-btn" onclick="addParlayToSlip(${JSON.stringify(selected).replace(/"/g,'&quot;')})">
             Add to Slip →
           </button>
@@ -1043,10 +1088,20 @@ function generateParlay() {
   `;
 }
 
-function resetOptimizerResult() {
+function resetOptimizerResult(keepPreviousSignature = false) {
+  generatedParlayResult = [];
+  if (!keepPreviousSignature) generatedParlaySignature = '';
+  generatedLegIdsCache = new Set();
+  generatedUsedTeamIds = new Set();
+  optimizerRunMessage = '';
   const result = document.getElementById('opt-result');
   result.style.display = 'none';
   result.innerHTML = '';
+}
+
+function generateAnotherParlay() {
+  resetOptimizerResult(true);
+  generateParlay();
 }
 
 function addParlayToSlip(legs) {
