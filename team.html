@@ -705,14 +705,18 @@ function getTeamId() {
 }
 
 async function init() {
-  const teamId = getTeamId();
+  const teamId = decodeURIComponent(getTeamId() || '');
   if (!teamId) {
     document.getElementById('pitch-col').innerHTML = '<div class="loading">No team selected</div>';
     return;
   }
-  const res = await fetch(`${API}/api/teams/${teamId}`);
-  teamData = await res.json();
-  renderTeamView();
+  try {
+    const res = await fetch(`${API}/api/teams/${encodeURIComponent(teamId)}`);
+    teamData = await res.json();
+    renderTeamView();
+  } catch(e) {
+    document.getElementById('pitch-col').innerHTML = '<div class="loading">Failed to load team</div>';
+  }
 }
 
 function renderTeamView() {

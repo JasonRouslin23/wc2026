@@ -1070,7 +1070,7 @@ async function loadGroups() {
 
 // Team
 async function loadTeam(teamId) {
-  window.location.href = `team.html?team=${teamId}`;
+  window.location.href = `team.html?team=${encodeURIComponent(teamId)}`;
 }
 
 function renderTeam(team) {
