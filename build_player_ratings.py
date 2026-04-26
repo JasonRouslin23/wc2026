@@ -187,7 +187,7 @@ def main():
     # Load API-Football stats for bonus scoring
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT player_id, goals, assists, tackles_total, interceptions,
+            SELECT player_id, league_name, goals, assists, tackles_total, interceptions,
                    passes_key, dribbles_success, rating, minutes, appearances
             FROM player_apifootball_stats
         """)
@@ -206,30 +206,36 @@ def main():
         af_rating = float(af.get("rating") or 0)
         af_apps = int(af.get("appearances") or 0)
         af_mins = int(af.get("minutes") or 0)
+        af_league = af.get("league_name") or ""
+
+        # League quality discount — only penalize weaker leagues
+        # Top 5 leagues = no change, weaker leagues get discounted
+        LEAGUE_DISCOUNT = {
+            "Premier League": 1.15,
+            "La Liga": 1.15,
+            "Bundesliga": 1.15,
+            "Serie A": 1.15,
+            "Ligue 1": 1.10,
+            "Eredivisie": 0.94,
+            "Primeira Liga": 0.94,
+            "Super Lig": 0.92,
+            "Belgian Pro League": 0.92,
+            "Scottish Premiership": 0.90,
+            "MLS": 0.88,
+            "Liga MX": 0.90,
+            "Allsvenskan": 0.87,
+            "Eliteserien": 0.87,
+            "Saudi Pro League": 0.82,
+            "Serie A Brazil": 0.88,
+            "Liga Profesional": 0.88,
+            "AFC Asian Cup": 0.83,
+        }
+        league_weight = LEAGUE_DISCOUNT.get(af_league, 0.88)
 
         if af_rating > 0 and af_apps >= 3:
-            # Scale 6.0-8.5 range to 0-100
-            # 6.0 = poor (0), 7.0 = average (40), 7.5 = good (60), 8.0 = elite (80), 8.5+ = world class (95+)
-            primary_score = max(0, min(100, (af_rating - 6.0) / 2.5 * 100))
-
-            # Boost for volume (more minutes = more reliable)
-            minutes_boost = min(10, af_mins / 300)
-            primary_score += minutes_boost
-
-            # Position-specific bonus stats
-            if pos == 'defender':
-                tackles = (af.get("tackles_total") or 0)
-                intercepts = (af.get("interceptions") or 0)
-                primary_score += min(5, (tackles + intercepts) / max(af_apps, 1) * 0.5)
-            elif pos == 'midfielder':
-                key_passes = (af.get("passes_key") or 0)
-                primary_score += min(5, key_passes / max(af_apps, 1) * 0.5)
-            elif pos == 'forward':
-                goals = (af.get("goals") or 0)
-                assists = (af.get("assists") or 0)
-                primary_score += min(8, (goals + assists) / max(af_apps, 1) * 2)
-
-            player_scores[pid] = max(1.0, min(95.0, primary_score))
+            adjusted_rating = af_rating * league_weight
+            primary_score = min(99, adjusted_rating * 10)
+            player_scores[pid] = round(primary_score, 1)
 
         else:
             # No AF data — use form-based scoring as fallback
@@ -251,14 +257,9 @@ def main():
             # Cap fallback scores at 45 so they can't beat AF-rated players
             player_scores[pid] = max(1.0, min(45.0, raw + 5.0))
 
-    # Normalize scores to 0-100 scale
-    all_scores = list(player_scores.values())
-    min_score = min(all_scores)
-    max_score = max(all_scores)
-    score_range = max_score - min_score if max_score > min_score else 1.0
-
+    # No normalization — scores are already on intuitive scale (AF rating * 10)
     normalized: dict[str, float] = {
-        pid: round(((s - min_score) / score_range) * 99 + 1, 2)
+        pid: round(min(99.0, max(1.0, s)), 1)
         for pid, s in player_scores.items()
     }
 

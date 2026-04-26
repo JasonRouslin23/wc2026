@@ -48,32 +48,32 @@ RATE_LIMIT      = 0.5  # seconds between calls
 
 LEAGUES = [
     # Top 5 European
-    (39,  2024, "Premier League",        1.20),
-    (140, 2024, "La Liga",               1.20),
-    (78,  2024, "Bundesliga",            1.20),
-    (135, 2024, "Serie A",               1.20),
-    (61,  2024, "Ligue 1",               1.15),
+    (39,  2025, "Premier League",        1.20),
+    (140, 2025, "La Liga",               1.20),
+    (78,  2025, "Bundesliga",            1.20),
+    (135, 2025, "Serie A",               1.20),
+    (61,  2025, "Ligue 1",               1.15),
     # Other European
-    (88,  2024, "Eredivisie",            1.05),
-    (94,  2024, "Primeira Liga",         1.05),
-    (203, 2024, "Super Lig",             1.00),
-    (144, 2024, "Belgian Pro League",    1.00),
-    (179, 2024, "Scottish Premiership",  0.95),
-    (113, 2024, "Allsvenskan",           0.90),
-    (103, 2024, "Eliteserien",           0.90),  # Norway
-    (307, 2024, "Saudi Pro League",      0.90),
+    (88,  2025, "Eredivisie",            1.05),
+    (94,  2025, "Primeira Liga",         1.05),
+    (203, 2025, "Super Lig",             1.00),
+    (144, 2025, "Belgian Pro League",    1.00),
+    (179, 2025, "Scottish Premiership",  0.95),
+    (113, 2025, "Allsvenskan",           0.90),
+    (103, 2025, "Eliteserien",           0.90),  # Norway
+    (307, 2025, "Saudi Pro League",      0.90),
     # Americas
-    (253, 2024, "MLS",                   0.95),
-    (262, 2024, "Liga MX",               2024),
-    (71,  2024, "Serie A Brazil",        1.00),
-    (128, 2024, "Liga Profesional",      1.00),  # Argentina
-    (239, 2024, "Superliga",             0.90),  # Colombia
-    (242, 2024, "Primera Division",      0.90),  # Uruguay
+    (253, 2025, "MLS",                   0.95),
+    (262, 2025, "Liga MX",               2024),
+    (71,  2025, "Serie A Brazil",        1.00),
+    (128, 2025, "Liga Profesional",      1.00),  # Argentina
+    (239, 2025, "Superliga",             0.90),  # Colombia
+    (242, 2025, "Primera Division",      0.90),  # Uruguay
     # Asia/Africa
-    (17,  2024, "AFC Asian Cup",         0.90),
+    (17,  2025, "AFC Asian Cup",         0.90),
     (33,  2023, "Africa Cup of Nations", 0.90),
     # Uzbekistan/Central Asia
-    (686, 2024, "Uzbekistan League",     0.80),
+    (686, 2025, "Uzbekistan League",     0.80),
 ]
 
 # ── Name normalization ────────────────────────────────────────────────────────
