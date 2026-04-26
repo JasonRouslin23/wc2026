@@ -1108,6 +1108,8 @@ function openBetPopup(event, groupName, teamId) {
   popup.style.display = 'block';
   setTimeout(() => document.addEventListener('click', hideBetPopup, {once:true}), 50);
 }
+
+function clickGroupTeam(event, groupName, teamId) {
   event.stopPropagation();
   const group = groupsData.find(g => g.name === groupName);
   const team = group.teams.find(t => t.id === teamId);
