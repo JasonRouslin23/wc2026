@@ -618,62 +618,63 @@ function renderGroupCard(g) {
 }
 
 function clickGroupTeam(event, groupName, teamId) {
+  event.stopPropagation();
   const group = groupsData.find(g => g.name === groupName);
   const team = group.teams.find(t => t.id === teamId);
   const pr = rankingsData[teamId] || {};
 
-  // Determine what pick slots are available
+  const advPct = pr.advance_pct || 50;
+  const winGroupPct = advPct * 0.45;
+
+  const winGroupOdds = formatOdds(probToAmerican(winGroupPct));
+  const qualifyOdds  = formatOdds(probToAmerican(advPct));
+
+  // Store pending action
+  window._pendingBetActions = {
+    pick1st: () => {
+      setGroupPick(groupName, team, 'first');
+      addToSlip(`${teamId}-win-${groupName}`, team, flag(team.country_code),
+        `Win Group ${groupName}`, winGroupOdds, probToAmerican(winGroupPct));
+    },
+    pick2nd: () => {
+      setGroupPick(groupName, team, 'second');
+      addToSlip(`${teamId}-adv-${groupName}`, team, flag(team.country_code),
+        `Advance from Group ${groupName}`, qualifyOdds, probToAmerican(advPct));
+    },
+    pick3rd: () => { setGroupPick(groupName, team, 'third'); },
+    clear: () => { clearGroupPick(groupName, teamId); },
+  };
+
   const picks = groupPicks[groupName] || {};
-  const isFirst  = picks.first?.id === teamId;
-  const isSecond = picks.second?.id === teamId;
-  const isThird  = picks.third?.id === teamId;
+  const hasPick = picks.first?.id === teamId || picks.second?.id === teamId || picks.third?.id === teamId;
 
-  // Show bet popup with options
-  const advOdds  = probToAmerican(pr.advance_pct);
-  const winOdds  = probToAmerican(pr.win_pct ? pr.win_pct * (100 / (pr.advance_pct || 100)) * (pr.advance_pct || 50) / 100 : null);
+  document.getElementById('popup-title').textContent = `${flag(team.country_code)} ${team.name}`;
+  document.getElementById('popup-options').innerHTML = `
+    <div class="bet-option" onclick="window._pendingBetActions.pick1st();hideBetPopup()">
+      <div><div class="bet-option-label">Pick as 1st · Win Group</div><div style="font-size:0.65rem;color:var(--muted)">Group winner bet</div></div>
+      <div class="bet-option-odds">${winGroupOdds}</div>
+    </div>
+    <div class="bet-option" onclick="window._pendingBetActions.pick2nd();hideBetPopup()">
+      <div><div class="bet-option-label">Pick as 2nd · Advance</div><div style="font-size:0.65rem;color:var(--muted)">Qualify bet</div></div>
+      <div class="bet-option-odds">${qualifyOdds}</div>
+    </div>
+    <div class="bet-option" onclick="window._pendingBetActions.pick3rd();hideBetPopup()">
+      <div><div class="bet-option-label">Pick as 3rd Place</div><div style="font-size:0.65rem;color:var(--muted)">Potential best 3rd</div></div>
+    </div>
+    ${hasPick ? `<div class="bet-option" onclick="window._pendingBetActions.clear();hideBetPopup()" style="border-top:1px solid var(--border);margin-top:0.25rem">
+      <div class="bet-option-label" style="color:var(--red)">Clear pick</div>
+    </div>` : ''}
+  `;
 
-  // Simple: use advance_pct for qualify, and a rough win group estimate
-  const qualifyOdds = formatOdds(probToAmerican(pr.advance_pct));
-  const winGroupOdds = formatOdds(probToAmerican(pr.advance_pct ? pr.advance_pct * 0.45 : null));
+  // Position popup near click
+  const x = Math.min(event.clientX + 10, window.innerWidth - 230);
+  const y = Math.min(event.clientY + 10, window.innerHeight - 220);
+  const popup = document.getElementById('bet-popup');
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+  popup.style.display = 'block';
 
-  showBetPopup(event, team.name, flag(team.country_code), [
-    {
-      label: `Pick as 1st`,
-      sublabel: 'Win Group',
-      odds: winGroupOdds,
-      american: probToAmerican(pr.advance_pct ? pr.advance_pct * 0.45 : null),
-      action: () => {
-        setGroupPick(groupName, team, 'first');
-        addToSlip(`${teamId}-win-${groupName}`, team, flag(team.country_code),
-          `Win Group ${groupName}`, winGroupOdds,
-          probToAmerican(pr.advance_pct ? pr.advance_pct * 0.45 : null));
-      }
-    },
-    {
-      label: `Pick as 2nd`,
-      sublabel: 'Qualify/Advance',
-      odds: qualifyOdds,
-      american: probToAmerican(pr.advance_pct),
-      action: () => {
-        setGroupPick(groupName, team, 'second');
-        addToSlip(`${teamId}-adv-${groupName}`, team, flag(team.country_code),
-          `Advance from Group ${groupName}`, qualifyOdds,
-          probToAmerican(pr.advance_pct));
-      }
-    },
-    {
-      label: `Pick as 3rd`,
-      sublabel: 'Potential best 3rd',
-      odds: null,
-      action: () => { setGroupPick(groupName, team, 'third'); }
-    },
-    {
-      label: isFirst || isSecond || isThird ? 'Clear pick' : null,
-      sublabel: '',
-      odds: null,
-      action: () => { clearGroupPick(groupName, teamId); }
-    }
-  ].filter(o => o.label));
+  setTimeout(() => document.addEventListener('click', hideBetPopup, {once:true}), 50);
 }
 
 function setGroupPick(groupName, team, slot) {
@@ -945,33 +946,6 @@ function goToPhase(phase) {
   unlockPhase(phase);
   renderKnockout(phase);
   showPhase(phase);
-}
-
-// ── BET POPUP ─────────────────────────────────────────────────────────────────
-function showBetPopup(event, teamName, teamFlag, options) {
-  const popup = document.getElementById('bet-popup');
-  document.getElementById('popup-title').textContent = `${teamFlag} ${teamName}`;
-
-  const optHtml = options.map(o => `
-    <div class="bet-option" onclick="(${o.action.toString()})()">
-      <div>
-        <div class="bet-option-label">${o.label}</div>
-        ${o.sublabel ? `<div style="font-size:0.65rem;color:var(--muted)">${o.sublabel}</div>` : ''}
-      </div>
-      ${o.odds ? `<div class="bet-option-odds">${o.odds}</div>` : ''}
-    </div>
-  `).join('');
-
-  document.getElementById('popup-options').innerHTML = optHtml;
-
-  // Position near click
-  const x = Math.min(event.clientX, window.innerWidth - 220);
-  const y = Math.min(event.clientY, window.innerHeight - 200);
-  popup.style.left = x + 'px';
-  popup.style.top  = y + 'px';
-  popup.style.display = 'block';
-
-  setTimeout(() => document.addEventListener('click', hideBetPopup, {once: true}), 10);
 }
 
 function hideBetPopup() {
