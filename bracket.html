@@ -702,11 +702,11 @@ function openOptimizer(event) {
   hideBetPopup();
   const overlay = document.getElementById('optimizer-overlay');
   overlay.style.display = 'flex';
-  // Hide "Win Group" toggle in knockout stages
+  // Hide "Win Group" toggle after Round of 32
   const wingroupToggle = document.getElementById('toggle-wingroup');
-  const isKnockout = ['r32','r16','qf','sf','final'].includes(currentPhase);
-  wingroupToggle.style.display = isKnockout ? 'none' : '';
-  if (isKnockout) {
+  const hideWinGroup = ['r16','qf','sf','final'].includes(currentPhase);
+  wingroupToggle.style.display = hideWinGroup ? 'none' : '';
+  if (hideWinGroup) {
     betTypeState.wingroup = false;
     wingroupToggle.classList.remove('on');
   }
@@ -881,12 +881,21 @@ function generateParlay() {
           <div class="opt-combined">${combinedStr}</div>
           <div class="opt-payout">$100 returns ${payout}</div>
         </div>
-        <button class="opt-add-btn" onclick="addParlayToSlip(${JSON.stringify(selected).replace(/"/g,'&quot;')})">
-          Add to Slip →
-        </button>
+        <div style="display:flex;gap:0.5rem">
+          <button class="opt-add-btn" onclick="resetOptimizerResult()">Generate Another</button>
+          <button class="opt-add-btn" onclick="addParlayToSlip(${JSON.stringify(selected).replace(/"/g,'&quot;')})">
+            Add to Slip →
+          </button>
+        </div>
       </div>
     </div>
   `;
+}
+
+function resetOptimizerResult() {
+  const result = document.getElementById('opt-result');
+  result.style.display = 'none';
+  result.innerHTML = '';
 }
 
 function addParlayToSlip(legs) {
