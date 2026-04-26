@@ -102,103 +102,42 @@ nav {
   position: relative;
   min-height: calc(100vh - 58px);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 4rem 2rem 3rem;
   overflow: hidden;
+  padding: 0;
 }
 
-/* Soccer field background */
-.field-bg {
+/* Photo background */
+.hero-photo {
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  pointer-events: none;
+  background-image: url('https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=1800&q=80');
+  background-size: cover;
+  background-position: center top;
+  filter: brightness(0.35) saturate(0.8);
 }
 
-/* Grass gradient */
-.field-bg::before {
-  content: '';
+/* Color grade overlay — teal left, dark right */
+.hero-grade {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 90%, rgba(10,61,31,0.5) 0%, transparent 70%),
-    radial-gradient(ellipse 100% 40% at 50% 100%, rgba(10,61,31,0.7) 0%, transparent 60%);
+    linear-gradient(105deg,
+      rgba(8,17,26,0.92) 0%,
+      rgba(8,17,26,0.75) 35%,
+      rgba(8,17,26,0.3) 65%,
+      rgba(8,17,26,0.15) 100%),
+    linear-gradient(to bottom, rgba(8,17,26,0.3) 0%, rgba(8,17,26,0.6) 100%);
 }
 
-/* Bottom fade to grass */
-.field-bg::after {
-  content: '';
+/* Teal light bleed from left */
+.hero-teal-bleed {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 55%;
-  background: linear-gradient(to top, rgba(10,61,31,0.35) 0%, transparent 100%);
-}
-
-/* ── FIELD LINES SVG ──────────────────────────────── */
-.field-lines {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 110%;
-  max-width: 1400px;
-  opacity: 0.18;
-  pointer-events: none;
-}
-
-/* ── PLAYER SILHOUETTES ───────────────────────────── */
-.player-left, .player-right {
-  position: absolute;
-  bottom: 0;
-  opacity: 0.13;
-  pointer-events: none;
-  filter: blur(1px);
-}
-
-.player-left {
-  left: 6%;
-  bottom: -20px;
-}
-
-.player-right {
-  right: 6%;
-  bottom: -20px;
-  transform: scaleX(-1);
-}
-
-/* Glow under players */
-.player-glow {
-  position: absolute;
-  bottom: 0;
-  width: 200px;
-  height: 60px;
-  border-radius: 50%;
-  filter: blur(30px);
-  opacity: 0.15;
-}
-
-.player-glow-left {
-  left: 4%;
-  background: var(--teal);
-}
-
-.player-glow-right {
-  right: 4%;
-  background: #c0392b;
-}
-
-/* Atmospheric top glow */
-.hero-atmosphere {
-  position: absolute;
-  top: -100px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: -100px;
+  top: 20%;
   width: 600px;
-  height: 400px;
-  background: radial-gradient(ellipse, rgba(83,214,220,0.07) 0%, transparent 70%);
+  height: 600px;
+  background: radial-gradient(ellipse, rgba(83,214,220,0.12) 0%, transparent 65%);
   pointer-events: none;
 }
 
@@ -208,23 +147,25 @@ nav {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  padding: 4rem 5rem;
+  max-width: 680px;
 }
 
 .hero-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(83,214,220,0.08);
-  border: 1px solid rgba(83,214,220,0.25);
+  background: rgba(83,214,220,0.1);
+  border: 1px solid rgba(83,214,220,0.3);
   border-radius: 100px;
   padding: 0.3rem 1rem;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--teal);
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
   animation: fadeUp 0.5s ease both;
 }
 
@@ -242,31 +183,33 @@ nav {
 
 .hero-title {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(4.5rem, 13vw, 10rem);
-  line-height: 0.88;
-  letter-spacing: 0.03em;
+  font-size: clamp(4rem, 9vw, 8rem);
+  line-height: 0.9;
+  letter-spacing: 0.02em;
   color: var(--text);
   animation: fadeUp 0.5s 0.08s ease both;
+  text-align: left;
 }
 
 .hero-title .teal { color: var(--teal); }
 
 .hero-title .year-line {
   display: block;
-  font-size: clamp(1.8rem, 5vw, 4rem);
-  color: rgba(226,244,245,0.35);
-  letter-spacing: 0.2em;
-  margin-top: 0.1em;
+  font-size: clamp(1.4rem, 3.5vw, 3rem);
+  color: rgba(226,244,245,0.3);
+  letter-spacing: 0.25em;
+  margin-top: 0.15em;
 }
 
 .hero-tagline {
-  margin-top: 1.4rem;
-  font-size: clamp(0.85rem, 2vw, 1rem);
+  margin-top: 1.25rem;
+  font-size: clamp(0.85rem, 1.5vw, 1rem);
   font-weight: 300;
-  color: var(--muted);
-  letter-spacing: 0.2em;
+  color: rgba(226,244,245,0.55);
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   animation: fadeUp 0.5s 0.16s ease both;
+  text-align: left;
 }
 
 .hero-tagline strong { color: var(--teal); font-weight: 500; }
@@ -277,7 +220,7 @@ nav {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   animation: fadeUp 0.5s 0.24s ease both;
 }
 
@@ -329,8 +272,9 @@ nav {
 .hero-stats {
   display: flex;
   gap: 2.5rem;
-  margin-top: 3.5rem;
+  margin-top: 3rem;
   animation: fadeUp 0.5s 0.32s ease both;
+  justify-content: flex-start;
 }
 
 .hero-stat-val {
@@ -924,98 +868,19 @@ nav {
 <!-- ── HOME ── -->
 <div id="view-home" class="view active">
   <div class="hero">
+    <div class="hero-photo"></div>
+    <div class="hero-grade"></div>
+    <div class="hero-teal-bleed"></div>
 
-    <!-- Field background -->
-    <div class="field-bg"></div>
-
-    <!-- Soccer field lines -->
-    <svg class="field-lines" viewBox="0 0 1200 500" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="white" stroke-width="1.5">
-      <!-- Pitch outline -->
-      <rect x="100" y="50" width="1000" height="400" rx="2"/>
-      <!-- Center line -->
-      <line x1="600" y1="50" x2="600" y2="450"/>
-      <!-- Center circle -->
-      <circle cx="600" cy="250" r="80"/>
-      <circle cx="600" cy="250" r="4" fill="white"/>
-      <!-- Left penalty box -->
-      <rect x="100" y="140" width="160" height="220"/>
-      <!-- Left 6-yard box -->
-      <rect x="100" y="195" width="55" height="110"/>
-      <!-- Left penalty spot -->
-      <circle cx="210" cy="250" r="3" fill="white"/>
-      <!-- Left penalty arc -->
-      <path d="M 260 195 A 80 80 0 0 1 260 305" stroke-dasharray="none"/>
-      <!-- Right penalty box -->
-      <rect x="940" y="140" width="160" height="220"/>
-      <!-- Right 6-yard box -->
-      <rect x="1145" y="195" width="55" height="110"/>
-      <!-- Right penalty spot -->
-      <circle cx="990" cy="250" r="3" fill="white"/>
-      <!-- Right penalty arc -->
-      <path d="M 940 195 A 80 80 0 0 0 940 305"/>
-      <!-- Corner arcs -->
-      <path d="M 100 70 A 20 20 0 0 1 120 50"/>
-      <path d="M 1080 50 A 20 20 0 0 1 1100 70"/>
-      <path d="M 100 430 A 20 20 0 0 0 120 450"/>
-      <path d="M 1080 450 A 20 20 0 0 0 1100 430"/>
-    </svg>
-
-    <!-- Player silhouettes -->
-    <!-- USA player (left) - running with ball -->
-    <svg class="player-left" width="180" height="380" viewBox="0 0 180 380" fill="white" xmlns="http://www.w3.org/2000/svg">
-      <!-- Head -->
-      <circle cx="95" cy="42" r="22"/>
-      <!-- Body -->
-      <path d="M75 64 C60 80 52 110 58 145 L72 145 L68 115 L90 108 L112 115 L108 145 L122 145 C128 110 120 80 105 64 Z"/>
-      <!-- Left arm reaching forward -->
-      <path d="M60 70 C40 82 22 90 10 88" stroke="white" stroke-width="14" stroke-linecap="round" fill="none"/>
-      <!-- Right arm back -->
-      <path d="M108 72 C125 85 138 95 148 98" stroke="white" stroke-width="13" stroke-linecap="round" fill="none"/>
-      <!-- Left leg stride forward -->
-      <path d="M72 145 C65 175 58 205 48 235 C42 252 38 265 45 278 L62 278 C58 265 64 255 70 238 C82 208 88 178 88 148 Z"/>
-      <!-- Right leg back -->
-      <path d="M108 145 C115 175 122 205 132 230 C138 248 142 262 136 272 L120 272 C126 260 122 248 116 232 C106 208 100 175 98 148 Z"/>
-      <!-- Ball near left foot -->
-      <circle cx="36" cy="295" r="20"/>
-      <path d="M36 275 L36 315 M16 295 L56 295 M20 280 L52 310 M52 280 L20 310" stroke="#08111a" stroke-width="1.5" fill="none"/>
-    </svg>
-
-    <!-- England player (right) - defensive stance -->
-    <svg class="player-right" width="180" height="380" viewBox="0 0 180 380" fill="white" xmlns="http://www.w3.org/2000/svg">
-      <!-- Head -->
-      <circle cx="85" cy="42" r="22"/>
-      <!-- Body - slight lean -->
-      <path d="M65 64 C50 80 44 112 50 148 L65 148 L62 118 L82 110 L104 118 L100 148 L116 148 C122 112 115 80 100 64 Z"/>
-      <!-- Arms out defending -->
-      <path d="M50 75 C32 70 14 68 4 72" stroke="white" stroke-width="13" stroke-linecap="round" fill="none"/>
-      <path d="M100 75 C118 68 138 65 152 68" stroke="white" stroke-width="13" stroke-linecap="round" fill="none"/>
-      <!-- Left leg planted -->
-      <path d="M65 148 C60 180 56 215 52 248 C48 268 46 278 52 285 L68 285 C62 278 66 268 70 250 C76 218 80 185 80 150 Z"/>
-      <!-- Right leg wide -->
-      <path d="M100 148 C108 180 118 212 128 242 C135 260 140 272 134 282 L118 282 C124 270 120 258 114 242 C104 212 96 182 92 150 Z"/>
-    </svg>
-
-    <!-- Corner flag -->
-    <svg style="position:absolute; bottom:60px; right:12%; opacity:0.15; pointer-events:none" width="40" height="120" viewBox="0 0 40 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <line x1="20" y1="0" x2="20" y2="110" stroke="white" stroke-width="2.5"/>
-      <path d="M20 5 L38 18 L20 32 Z" fill="white"/>
-      <circle cx="20" cy="113" r="6" fill="white" opacity="0.4"/>
-    </svg>
-
-    <!-- Glows -->
-    <div class="player-glow player-glow-left"></div>
-    <div class="player-glow player-glow-right"></div>
-    <div class="hero-atmosphere"></div>
-
-    <!-- Content -->
     <div class="hero-content">
       <div class="hero-eyebrow">
         <div class="hero-eyebrow-dot"></div>
-        FIFA World Cup 2026 · Edge Intelligence
+        FIFA World Cup 2026 · Analytics
       </div>
 
       <h1 class="hero-title">
-        <span class="teal">Edge</span><br>Intelligence
+        Know More.<br>
+        <span class="teal">Win More.</span>
         <span class="year-line">WC · 2026</span>
       </h1>
 
@@ -1034,34 +899,16 @@ nav {
           <div class="hero-stat-label">Nations</div>
         </div>
         <div class="hero-stat">
-          <div class="hero-stat-val" id="stat-players">1,413</div>
+          <div class="hero-stat-val">1,413</div>
           <div class="hero-stat-label">Players</div>
         </div>
         <div class="hero-stat">
-          <div class="hero-stat-val" id="stat-matches">419</div>
+          <div class="hero-stat-val">419</div>
           <div class="hero-stat-label">Matches</div>
         </div>
         <div class="hero-stat">
           <div class="hero-stat-val">12</div>
           <div class="hero-stat-label">Groups</div>
-        </div>
-      </div>
-
-      <div class="hero-features">
-        <div class="feature-card" onclick="showView('rankings')">
-          <div class="feature-icon">⚡</div>
-          <div class="feature-title">Power Rankings</div>
-          <div class="feature-desc">Model-driven tier list blending team form, squad quality, and 5-market odds intelligence across all 48 nations.</div>
-        </div>
-        <div class="feature-card" onclick="showView('groups')">
-          <div class="feature-icon">🏆</div>
-          <div class="feature-title">Group Intelligence</div>
-          <div class="feature-desc">Live standings, qualification probabilities, and projections for all 12 groups A through L.</div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🧬</div>
-          <div class="feature-title">Squad Builder</div>
-          <div class="feature-desc">Set your lineup, watch the rating update live, and simulate the full bracket. Coming soon.</div>
         </div>
       </div>
     </div>
