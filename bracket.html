@@ -333,6 +333,75 @@ nav {
 .third-place-name { font-size: 0.78rem; font-weight: 500; flex: 1; }
 .third-place-group { font-size: 0.65rem; color: var(--muted); }
 
+.third-rankings {
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 1rem 1rem;
+}
+
+.third-rankings-title {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.6rem;
+}
+
+.third-rankings-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.third-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.4rem 0.55rem;
+}
+
+.third-rank-pos {
+  width: 1.4rem;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  color: var(--teal);
+  font-size: 0.72rem;
+}
+
+.third-rank-team {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+}
+
+.third-rank-controls {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.third-rank-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.third-rank-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ── KNOCKOUT BRACKET ── */
 .bracket-container {
   overflow-x: auto; padding-bottom: 1rem;
@@ -1223,6 +1292,7 @@ let groupsData = [];
 let rankingsData = {};
 let groupPicks = {}; // groupLetter -> {first: team, second: team, third: team}
 let thirdPicks = []; // array of team ids selected as best 3rd
+let thirdRankedPicks = []; // ordered array of selected best-3rd team ids (1 -> 8)
 let knockoutPicks = {}; // matchId -> winning team
 let betSlip = []; // array of {id, team, desc, odds, american}
 let currentPhase = 'groups';
@@ -1555,14 +1625,34 @@ function goToThird() {
   showPhase('third');
 }
 
+function getThirdPlaceScore(teamId) {
+  const pr = rankingsData[teamId] || {};
+  if (typeof pr.power_rating === 'number' && !Number.isNaN(pr.power_rating)) return pr.power_rating;
+  if (typeof pr.model_score === 'number' && !Number.isNaN(pr.model_score)) return pr.model_score;
+  if (typeof pr.advance_pct === 'number' && !Number.isNaN(pr.advance_pct)) return pr.advance_pct;
+  return 0;
+}
+
+function syncThirdRankingWithSelections() {
+  const selectedIds = new Set(thirdPicks);
+  const kept = thirdRankedPicks.filter(id => selectedIds.has(id));
+  const missing = thirdPicks
+    .filter(id => !kept.includes(id))
+    .sort((a, b) => getThirdPlaceScore(b) - getThirdPlaceScore(a));
+  thirdRankedPicks = [...kept, ...missing].slice(0, 8);
+}
+
+function moveThirdRank(teamId, direction) {
+  const idx = thirdRankedPicks.indexOf(teamId);
+  if (idx < 0) return;
+  const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (targetIdx < 0 || targetIdx >= thirdRankedPicks.length) return;
+  [thirdRankedPicks[idx], thirdRankedPicks[targetIdx]] = [thirdRankedPicks[targetIdx], thirdRankedPicks[idx]];
+  renderThirdPlace();
+}
+
 // ── THIRD PLACE ───────────────────────────────────────────────────────────────
 function renderThirdPlace() {
-  // Get all third-place picks + unpicked teams as potential 3rds
-  const thirdTeams = groupsData.map(g => {
-    const picks = groupPicks[g.name] || {};
-    return picks.third || null;
-  }).filter(Boolean);
-
   // Also include any teams not picked as 1st or 2nd
   const allThirds = groupsData.map(g => {
     const picks = groupPicks[g.name] || {};
@@ -1572,6 +1662,8 @@ function renderThirdPlace() {
     );
     return team ? {...team, group: g.name} : null;
   }).filter(Boolean);
+  syncThirdRankingWithSelections();
+  const thirdById = new Map(allThirds.map(t => [t.id, t]));
 
   const el = document.getElementById('phase-third');
   el.innerHTML = `
@@ -1586,7 +1678,6 @@ function renderThirdPlace() {
       </div>
       <div class="third-place-grid">
         ${allThirds.map(t => {
-          const pr = rankingsData[t.id] || {};
           const isSelected = thirdPicks.includes(t.id);
           const isLocked = !isSelected && thirdPicks.length >= 8;
           return `
@@ -1599,6 +1690,33 @@ function renderThirdPlace() {
           `;
         }).join('')}
       </div>
+      <div class="third-rankings">
+        <div class="third-rankings-title">Ranked Best 3rd Teams (1–8)</div>
+        ${thirdRankedPicks.length === 0 ? `
+          <div style="font-size:0.74rem;color:var(--muted)">Select teams above to generate ranking.</div>
+        ` : `
+          <ol class="third-rankings-list">
+            ${thirdRankedPicks.map((teamId, idx) => {
+              const t = thirdById.get(teamId);
+              if (!t) return '';
+              return `
+                <li class="third-rank-item">
+                  <span class="third-rank-pos">${idx + 1}</span>
+                  <div class="third-rank-team">
+                    <span>${flag(t.country_code)}</span>
+                    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</span>
+                    <span style="font-size:0.68rem;color:var(--muted)">(${t.group})</span>
+                  </div>
+                  <div class="third-rank-controls">
+                    <button class="third-rank-btn" onclick="moveThirdRank('${teamId}','up')" ${idx === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="third-rank-btn" onclick="moveThirdRank('${teamId}','down')" ${idx === thirdRankedPicks.length - 1 ? 'disabled' : ''}>▼</button>
+                  </div>
+                </li>
+              `;
+            }).join('')}
+          </ol>
+        `}
+      </div>
     </div>
     <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
       <button onclick="goToR32()" style="background:var(--teal);color:#08111a;border:none;padding:0.75rem 2rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase">
@@ -1609,7 +1727,6 @@ function renderThirdPlace() {
 }
 
 function toggleThird(teamId, teamName, countryCode, group) {
-  const pr = rankingsData[teamId] || {};
   const idx = thirdPicks.indexOf(teamId);
   if (idx >= 0) {
     thirdPicks.splice(idx, 1);
@@ -1626,7 +1743,8 @@ function goToR32() {
   unlockPhase('r32');
   const build = buildAndValidateRoundOf32();
   if (!build.ok) {
-    alert('Round of 32 bracket is invalid (duplicate/missing teams). Please review group and 3rd-place selections.');
+    const reason = build.error ? `\n\nDetails: ${build.error}` : '';
+    alert(`Round of 32 bracket is invalid (duplicate/missing teams). Please review group and 3rd-place selections.${reason}`);
     return;
   }
   renderKnockout('r32');
@@ -1668,7 +1786,32 @@ function getSelectedThirdPlaceTeams() {
 function buildAndValidateRoundOf32() {
   const slotTeams = {};
   const usedTeamIds = new Set();
-  const selectedThirdByGroup = new Map(getSelectedThirdPlaceTeams().map(t => [t.group, t]));
+  const usedThirdPlaceIds = new Set();
+  const selectedThirdTeams = getSelectedThirdPlaceTeams();
+  const selectedThirdById = new Map(selectedThirdTeams.map(t => [t.id, t]));
+
+  syncThirdRankingWithSelections();
+  const rankedThirdTeams = thirdRankedPicks.map(id => selectedThirdById.get(id)).filter(Boolean);
+  const uniqueRankedThirdIds = new Set(rankedThirdTeams.map(t => t.id));
+
+  if (selectedThirdTeams.length !== 8 || rankedThirdTeams.length !== 8 || uniqueRankedThirdIds.size !== 8) {
+    const validation = {
+      totalTeams: 0,
+      uniqueTeamIds: 0,
+      duplicateTeams: [],
+      thirdPlaceSelected: selectedThirdTeams.length,
+      thirdPlaceRanked: rankedThirdTeams.length,
+      ok: false,
+      error: 'Expected exactly 8 unique ranked third-place teams before building Round of 32.'
+    };
+    console.error('[WC26][R32] Third-place pre-validation failed', {
+      validation,
+      selectedThirdTeamIds: selectedThirdTeams.map(t => t.id),
+      rankedThirdTeamIds: thirdRankedPicks
+    });
+    lastR32Resolution = { slotTeams: {}, validation };
+    return { ...validation, slotTeams: {} };
+  }
 
   for (const match of R32_MATCHES) {
     for (const side of ['home', 'away']) {
@@ -1680,18 +1823,27 @@ function buildAndValidateRoundOf32() {
       } else if (slot.type === 'runner-up') {
         team = groupPicks[slot.group]?.second || null;
       } else if (slot.type === 'best3rd') {
-        for (const g of slot.groups) {
-          const candidate = selectedThirdByGroup.get(g);
-          if (!candidate) continue;
-          if (usedTeamIds.has(candidate.id)) continue;
+        for (const candidate of rankedThirdTeams) {
+          if (!slot.groups.includes(candidate.group)) continue;
+          if (usedThirdPlaceIds.has(candidate.id)) continue;
           team = candidate;
           break;
+        }
+        if (!team) {
+          console.error('[WC26][R32] Unable to resolve best3rd slot', {
+            matchId: match.id,
+            side,
+            eligibleGroups: slot.groups,
+            rankedThirdTeams: rankedThirdTeams.map(t => ({id: t.id, name: t.name, group: t.group})),
+            usedThirdPlaceIds: Array.from(usedThirdPlaceIds)
+          });
         }
       } else {
         team = knockoutPicks[slot] || null;
       }
       slotTeams[slotKey] = team || null;
       if (team?.id) usedTeamIds.add(team.id);
+      if (slot.type === 'best3rd' && team?.id) usedThirdPlaceIds.add(team.id);
     }
   }
 
@@ -1705,8 +1857,10 @@ function buildAndValidateRoundOf32() {
     totalTeams: teams.length,
     uniqueTeamIds: uniqueIds.size,
     duplicateTeams,
-    thirdPlaceSelected: getSelectedThirdPlaceTeams().length,
-    ok: teams.length === 32 && uniqueIds.size === 32
+    thirdPlaceSelected: selectedThirdTeams.length,
+    thirdPlaceRanked: rankedThirdTeams.length,
+    thirdPlaceUsedCount: usedThirdPlaceIds.size,
+    ok: teams.length === 32 && uniqueIds.size === 32 && usedThirdPlaceIds.size === 8
   };
 
   console.debug('[WC26][R32] Bracket validation', validation);
@@ -1906,6 +2060,7 @@ function resetBracket() {
   if (!confirm('Reset all bracket picks and bet slip?')) return;
   groupPicks = {};
   thirdPicks = [];
+  thirdRankedPicks = [];
   knockoutPicks = {};
   betSlip = [];
   window.slotOverrides = {};
