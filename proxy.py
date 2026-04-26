@@ -252,8 +252,10 @@ def get_power_rankings():
                     t.id, t.name, t.short_name, t.abbreviation, t.country_code, t.group_name,
                     t.jersey_primary, t.jersey_secondary,
                     t.power_rating, t.power_rank, t.tier,
-                    pr.attack, pr.defense, pr.win_prob, pr.group_adv_prob,
-                    pr.win_american, pr.win_decimal, pr.group_american,
+                    pr.attack, pr.defense, pr.squad_rating,
+                    pr.win_pct, pr.final_pct, pr.semi_pct, pr.qf_pct, pr.advance_pct,
+                    pr.win_american, pr.final_american, pr.semi_american,
+                    pr.qf_american, pr.advance_american,
                     pr.n_matches, pr.conf, pr.computed_at
                 FROM teams t
                 LEFT JOIN power_rankings pr ON pr.team_id = t.id
