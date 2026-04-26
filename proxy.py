@@ -28,7 +28,7 @@ import json
 import logging
 import subprocess
 from decimal import Decimal
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 import psycopg
 from psycopg.rows import dict_row
@@ -64,13 +64,10 @@ def row(cur) -> dict | None:
 
 
 def serialize(obj):
-    if isinstance(obj, datetime):
+    if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     if isinstance(obj, Decimal):
         return float(obj)
-    import datetime as dt
-    if isinstance(obj, dt.date):
-        return obj.isoformat()
     raise TypeError(f"Not serialisable: {type(obj)}")
 
 
